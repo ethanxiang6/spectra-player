@@ -22,6 +22,10 @@ object AuthConfig {
         "user-library-read",
         "playlist-read-private",
         "playlist-read-collaborative",
+        // Consent for the App Remote connection. Granting it here, in a window the user can see,
+        // avoids relying on the Spotify app opening its own "allow this app" screen from the
+        // background, which recent Android versions block.
+        "app-remote-control",
     )
 
     val isConfigured: Boolean get() = clientId.isNotBlank()
