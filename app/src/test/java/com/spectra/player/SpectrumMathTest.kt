@@ -34,7 +34,7 @@ class SpectrumMathTest {
 
     @Test
     fun silenceMapsToZero() {
-        val mapper = BandMapper(bands = 24, fftSize = 1024, sampleRate = 48_000)
+        val mapper = BandMapper(bands = 24, fftSize = 1024, sampleRateHz = 48_000)
         val out = FloatArray(24) { 1f }
         assertEquals(0f, mapper.map(ByteArray(1024), out), 0f)
         assertTrue(out.all { it == 0f })
@@ -42,7 +42,7 @@ class SpectrumMathTest {
 
     @Test
     fun bandEdgesAreIncreasingAndStayBelowNyquist() {
-        val mapper = BandMapper(bands = 48, fftSize = 1024, sampleRate = 22_050)
+        val mapper = BandMapper(bands = 48, fftSize = 1024, sampleRateHz = 22_050)
         for (i in 0 until 48) assertTrue(mapper.edgesHz[i] < mapper.edgesHz[i + 1])
         assertTrue(mapper.edgesHz.last() <= 22_050 / 2f + 0.5f)
     }
