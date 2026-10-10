@@ -17,7 +17,17 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.ui.platform.LocalContext
+import com.spectra.player.BuildConfig
+import com.spectra.player.auth.AuthConfig
+import com.spectra.player.auth.SigningInfo
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -97,7 +107,51 @@ fun LoginScreen(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 8.dp),
             )
+
+            SetupDetails()
         }
+    }
+}
+
+/**
+ * "Redirect URI not matching" almost always means the dashboard value differs from what this build
+ * sends. This shows the exact values (long-press to copy) so they can be pasted into
+ * developer.spotify.com/dashboard -> your app -> Settings.
+ */
+@Composable
+private fun SetupDetails() {
+    val colors = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    var open by remember { mutableStateOf(false) }
+    TextButton(onClick = { open = !open }) {
+        Text(if (open) "Hide setup details" else "Sign-in problems? Show setup details")
+    }
+    if (open) {
+        val sha1 = remember { SigningInfo.sha1(context) ?: "unavailable" }
+        val id = AuthConfig.clientId
+        val idShown = if (id.isBlank()) "(empty - the build has no Client ID)" else id
+        SelectionContainer {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                DetailRow("Redirect URI (paste exactly)", AuthConfig.redirectUri)
+                DetailRow("Client ID in this build", idShown)
+                DetailRow("Android package", BuildConfig.APPLICATION_ID)
+                DetailRow("Signing SHA-1", sha1)
+            }
+        }
+        Text(
+            "In the Spotify dashboard add the Redirect URI above (no spaces or trailing slash) and click Save.",
+            style = MaterialTheme.typography.labelMedium,
+            color = colors.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium)
     }
 }
 

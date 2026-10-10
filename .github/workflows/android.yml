@@ -119,5 +119,10 @@ jobs:
           src=$(ls apk/*.apk | head -n 1)
           name="Spectra-${TAG}-debug.apk"
           cp "$src" "$name"
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "Spectra $TAG" \
+              --notes "Debug build. Sign-in needs the redirect URI spectra://callback registered in the Spotify dashboard; the login screen's setup details panel shows the exact values."
+          fi
           gh release upload "$TAG" "$name" --clobber --repo "$GITHUB_REPOSITORY"
           echo "Attached $name ($(stat -c %s "$name") bytes) to release $TAG"

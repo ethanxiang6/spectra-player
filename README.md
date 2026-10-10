@@ -113,6 +113,7 @@ our own PKCE flow, so Spotify's separate Auth library isn't needed.
 
 | Symptom | Likely cause |
 |---|---|
+| "Redirect URI not matching configuration" | The dashboard's Redirect URIs must contain exactly `spectra://callback` (no spaces, no trailing slash) and be saved. The login screen's *Sign-in problems? Show setup details* panel shows the exact values this build uses, including its SHA-1. |
 | "Spotify didn't authorize this app" | Client ID, package name, SHA-1 or redirect URI don't match the dashboard. |
 | Login page returns "Sign-in response could not be verified" | Redirect URI not exactly `spectra://callback`, or the sign-in was started twice. |
 | 403 on library calls | Account not in *User Management*, or the app owner lacks Premium (dev mode). |
