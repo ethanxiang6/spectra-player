@@ -1,6 +1,10 @@
 # Spotify App Remote SDK (uses Gson + reflection on its protocol types)
 -keep class com.spotify.** { *; }
 -dontwarn com.spotify.**
+-keep class com.fasterxml.jackson.** { *; }
+-dontwarn com.fasterxml.jackson.**
+-dontwarn java.beans.**
+-dontwarn javax.lang.model.**
 -keepattributes Signature, *Annotation*, InnerClasses, EnclosingMethod
 
 # kotlinx.serialization (generated serializers for our DTOs / nav routes)

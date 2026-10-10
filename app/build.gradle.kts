@@ -105,6 +105,9 @@ dependencies {
     // Official Spotify App Remote AAR (app/libs). Spotify does not publish it to Maven Central.
     implementation(files("libs/spotify-app-remote-release-0.8.0.aar"))
     implementation(libs.gson) // required at runtime by the App Remote SDK
+    // The App Remote protocol layer (de)serializes with Jackson. Without it the connection never
+    // completes and no error is reported ("Connecting..." forever).
+    implementation(libs.jackson.databind)
 
     // --- Tests ---
     testImplementation(libs.junit)
