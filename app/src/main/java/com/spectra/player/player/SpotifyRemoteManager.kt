@@ -1,6 +1,10 @@
 package com.spectra.player.player
 
+import android.app.Activity
+import android.app.Application
 import android.content.Context
+import android.os.Bundle
+import java.lang.ref.WeakReference
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -45,6 +49,33 @@ class SpotifyRemoteManager(private val context: Context) {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var attempt = 0
 
+    // Spotify's own sample connects with an Activity context; the "allow this app" sheet and the
+    // service binding are more reliable that way than with the bare application context.
+    private var foreground: WeakReference<Activity>? = null
+
+    init {
+        (context.applicationContext as? Application)?.registerActivityLifecycleCallbacks(
+            object : Application.ActivityLifecycleCallbacks {
+                override fun onActivityCreated(a: Activity, b: Bundle?) { foreground = WeakReference(a) }
+                override fun onActivityStarted(a: Activity) { foreground = WeakReference(a) }
+                override fun onActivityResumed(a: Activity) { foreground = WeakReference(a) }
+                override fun onActivityPaused(a: Activity) = Unit
+                override fun onActivityStopped(a: Activity) = Unit
+                override fun onActivitySaveInstanceState(a: Activity, b: Bundle) = Unit
+                override fun onActivityDestroyed(a: Activity) {
+                    if (foreground?.get() === a) foreground = null
+                }
+            },
+        )
+    }
+
+    private fun spotifyAppInfo(): String = try {
+        val v = context.packageManager.getPackageInfo("com.spotify.music", 0).versionName
+        "Spotify app $v is installed."
+    } catch (e: Exception) {
+        "The Spotify app was not found on this phone."
+    }
+
     private val _connection = MutableStateFlow<Connection>(Connection.Disconnected)
     val connection: StateFlow<Connection> = _connection.asStateFlow()
 
@@ -73,7 +104,7 @@ class SpotifyRemoteManager(private val context: Context) {
         // registered, or Device Broadcast Status is off). Turn that into an actionable message.
         mainHandler.postDelayed({
             if (thisAttempt == attempt && _connection.value == Connection.Connecting) {
-                _connection.value = Connection.Failed(CONNECT_TIMEOUT_MESSAGE)
+                _connection.value = Connection.Failed("$CONNECT_TIMEOUT_MESSAGE ${spotifyAppInfo()}")
             }
         }, CONNECT_TIMEOUT_MS)
 
@@ -83,7 +114,7 @@ class SpotifyRemoteManager(private val context: Context) {
             .build()
 
         SpotifyAppRemote.connect(
-            context,
+            foreground?.get()?.takeUnless { it.isFinishing || it.isDestroyed } ?: context,
             params,
             object : Connector.ConnectionListener {
                 override fun onConnected(appRemote: SpotifyAppRemote) {
