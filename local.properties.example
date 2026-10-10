@@ -1,0 +1,6 @@
+## Copy to local.properties (git-ignored) and fill in.
+## Android Studio normally adds sdk.dir for you.
+# sdk.dir=/path/to/Android/sdk
+
+# Client ID from https://developer.spotify.com/dashboard (no secret needed: PKCE)
+spotify.clientId=YOUR_SPOTIFY_CLIENT_ID
