@@ -469,7 +469,7 @@ private fun ConnectionBanner(connection: SpotifyRemoteManager.Connection, onRetr
             }
         }
         SpotifyRemoteManager.Connection.Connecting -> Text(
-            "Connecting to Spotify…",
+            "Connecting to Spotify… the first time can take up to a minute. If Spotify shows an \"Allow\" screen, accept it.",
             style = MaterialTheme.typography.labelMedium,
             color = colors.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),

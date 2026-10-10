@@ -267,12 +267,16 @@ class SpotifyRemoteManager(private val context: Context) {
             )
         "OfflineModeException" ->
             Connection.Failed("Spotify is in offline mode. Go online in the Spotify app to connect.")
-        else -> Connection.Failed(message ?: "Couldn't connect to Spotify.")
+        else -> Connection.Failed(
+            "Couldn't connect to Spotify (${javaClass.simpleName}${message?.let { ": $it" } ?: ""}).",
+        )
     }
 
     private companion object {
         const val TAG = "SpotifyRemote"
-        const val CONNECT_TIMEOUT_MS = 12_000L
+        // The SDK itself waits up to 30 s to bind and 30 s for Spotify's hello reply, then reports a
+        // specific error. Wait slightly longer than both so that real error wins over our generic one.
+        const val CONNECT_TIMEOUT_MS = 65_000L
         const val CONNECT_TIMEOUT_MESSAGE =
             "Spotify didn't respond. Open the Spotify app once, turn on Settings > Playback > " +
                 "Device Broadcast Status, and make sure this app's SHA-1 is registered under " +
