@@ -1,6 +1,8 @@
 package com.spectra.player.player
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
@@ -40,6 +42,8 @@ class SpotifyRemoteManager(private val context: Context) {
     private var playerSubscription: Subscription<PlayerState>? = null
     private var lastImageUri: String? = null
     private var pendingPlayUri: String? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var attempt = 0
 
     private val _connection = MutableStateFlow<Connection>(Connection.Disconnected)
     val connection: StateFlow<Connection> = _connection.asStateFlow()
@@ -64,6 +68,14 @@ class SpotifyRemoteManager(private val context: Context) {
             else -> Unit
         }
         _connection.value = Connection.Connecting
+        val thisAttempt = ++attempt
+        // The SDK can wait forever when the Spotify app never answers (e.g. the fingerprint isn't
+        // registered, or Device Broadcast Status is off). Turn that into an actionable message.
+        mainHandler.postDelayed({
+            if (thisAttempt == attempt && _connection.value == Connection.Connecting) {
+                _connection.value = Connection.Failed(CONNECT_TIMEOUT_MESSAGE)
+            }
+        }, CONNECT_TIMEOUT_MS)
 
         val params = ConnectionParams.Builder(AuthConfig.clientId)
             .setRedirectUri(AuthConfig.redirectUri)
@@ -75,6 +87,7 @@ class SpotifyRemoteManager(private val context: Context) {
             params,
             object : Connector.ConnectionListener {
                 override fun onConnected(appRemote: SpotifyAppRemote) {
+                    attempt++
                     remote = appRemote
                     _connection.value = Connection.Connected
                     onConnected(appRemote)
@@ -82,6 +95,7 @@ class SpotifyRemoteManager(private val context: Context) {
 
                 override fun onFailure(error: Throwable) {
                     Log.w(TAG, "App Remote connect failed: ${error.javaClass.simpleName}")
+                    attempt++
                     remote = null
                     _connection.value = error.toFailure()
                 }
@@ -90,6 +104,7 @@ class SpotifyRemoteManager(private val context: Context) {
     }
 
     fun disconnect() {
+        attempt++
         playerSubscription?.cancel()
         playerSubscription = null
         remote?.let { SpotifyAppRemote.disconnect(it) }
@@ -204,5 +219,10 @@ class SpotifyRemoteManager(private val context: Context) {
 
     private companion object {
         const val TAG = "SpotifyRemote"
+        const val CONNECT_TIMEOUT_MS = 12_000L
+        const val CONNECT_TIMEOUT_MESSAGE =
+            "Spotify didn't respond. Open the Spotify app once, turn on Settings > Playback > " +
+                "Device Broadcast Status, and make sure this app's SHA-1 is registered under " +
+                "Android Packages in the Spotify dashboard. Then tap Retry."
     }
 }
