@@ -72,7 +72,17 @@ jobs:
           if-no-files-found: error
 
       - name: Unit tests
-        run: ./gradlew testDebugUnitTest --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew testDebugUnitTest --stacktrace --console=plain 2>&1 | tee test.log
+
+      - name: Summarize test failures
+        if: failure()
+        run: |
+          grep -E '(^e: |FAILED|AssertionError|Exception|What went wrong|Execution failed|expected|error:)' test.log \
+            | head -80 | cut -c1-300 > errors.txt || true
+          body=$(cat errors.txt | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
+          echo "::error title=Test errors::${body}"
 
       - name: Upload test report
         if: always()
