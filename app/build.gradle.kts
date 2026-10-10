@@ -107,7 +107,9 @@ dependencies {
     implementation(libs.coil.compose)
 
     // --- Spotify (App Remote SDK + Auth library, via JitPack) ---
+    // The JitPack umbrella artifact only exposes its modules at runtime, so declare them directly.
     implementation(libs.spotify.app.remote)
+    implementation(libs.spotify.auth)
     implementation(libs.gson) // required at runtime by the App Remote SDK
 
     // --- Tests ---
