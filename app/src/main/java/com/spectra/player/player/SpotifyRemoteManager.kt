@@ -130,9 +130,10 @@ class SpotifyRemoteManager(private val context: Context) {
 
     private fun onConnected(appRemote: SpotifyAppRemote) {
         playerSubscription?.cancel()
-        playerSubscription = appRemote.playerApi.subscribeToPlayerState()
-            .setEventCallback { state -> handlePlayerState(state) }
-            .setErrorCallback { Log.w(TAG, "Player state subscription error: ${it.javaClass.simpleName}") }
+        val subscription = appRemote.playerApi.subscribeToPlayerState()
+        subscription.setEventCallback { state -> handlePlayerState(state) }
+        subscription.setErrorCallback { Log.w(TAG, "Player state subscription error: ${it.javaClass.simpleName}") }
+        playerSubscription = subscription
 
         appRemote.userApi.capabilities
             .setResultCallback { caps -> _canPlayOnDemand.value = caps.canPlayOnDemand }

@@ -30,11 +30,6 @@ android {
         buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"$spotifyClientId\"")
         buildConfigField("String", "SPOTIFY_REDIRECT_URI", "\"spectra://callback\"")
 
-        // The bundled Spotify Auth library declares an intent filter built from these two
-        // placeholders. We run our own PKCE flow (redirect: spectra://callback), so point the
-        // library's filter at a scheme nothing else uses to avoid a duplicate-handler clash.
-        manifestPlaceholders["redirectSchemeName"] = "spectra-sdk-unused"
-        manifestPlaceholders["redirectHostName"] = "unused"
     }
 
     // Optional stable signing key for CI builds. Spotify App Remote only accepts an app whose
@@ -106,10 +101,9 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.coil.compose)
 
-    // --- Spotify (App Remote SDK + Auth library, via JitPack) ---
-    // The JitPack umbrella artifact only exposes its modules at runtime, so declare them directly.
-    implementation(libs.spotify.app.remote)
-    implementation(libs.spotify.auth)
+    // --- Spotify App Remote SDK ---
+    // Official Spotify App Remote AAR (app/libs). Spotify does not publish it to Maven Central.
+    implementation(files("libs/spotify-app-remote-release-0.8.0.aar"))
     implementation(libs.gson) // required at runtime by the App Remote SDK
 
     // --- Tests ---
