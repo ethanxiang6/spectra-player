@@ -37,7 +37,25 @@ android {
         manifestPlaceholders["redirectHostName"] = "unused"
     }
 
+    // Optional stable signing key for CI builds. Spotify App Remote only accepts an app whose
+    // signing SHA-1 is registered in the dashboard, and a fresh runner would otherwise generate
+    // a new random debug key on every build.
+    val ciKeystorePath = System.getenv("KEYSTORE_PATH")
+    if (!ciKeystorePath.isNullOrBlank() && file(ciKeystorePath).exists()) {
+        signingConfigs {
+            create("ci") {
+                storeFile = file(ciKeystorePath)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfigs.findByName("ci")?.let { signingConfig = it }
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

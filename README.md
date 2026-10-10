@@ -89,6 +89,26 @@ app/src/main/java/com/spectra/player/
 The Spotify SDK comes from JitPack (`com.github.spotify:android-app-remote-sdk`, bundling App
 Remote 0.8.0 and Auth 2.1.0); the repo is already declared in `settings.gradle.kts`.
 
+## Build the APK on GitHub
+
+`.github/workflows/android.yml` builds a debug APK on every push to `main` (and on demand via
+**Actions → Build APK → Run workflow**), then runs the unit tests. Download the APK from the run's
+**Artifacts** (`spectra-debug-apk`).
+
+1. Repo **Settings → Secrets and variables → Actions → New repository secret**:
+   - `SPOTIFY_CLIENT_ID` — your Spotify Client ID (required for sign-in to work).
+2. Spotify App Remote only accepts an app whose signing **SHA-1** is registered in the dashboard,
+   and a fresh runner makes a new random debug key every time. Create one stable key once:
+   ```
+   keytool -genkeypair -v -keystore ci.keystore -alias spectra -keyalg RSA -keysize 2048 \
+     -validity 10000 -storepass <password> -keypass <password> -dname "CN=Spectra"
+   base64 -w0 ci.keystore        # macOS: base64 -i ci.keystore
+   keytool -list -v -keystore ci.keystore -alias spectra | grep SHA1   # register this in Spotify
+   ```
+   Add secrets `KEYSTORE_BASE64` (the base64 text), `KEYSTORE_PASSWORD`, `KEY_ALIAS` (`spectra`),
+   `KEY_PASSWORD`. Without them the APK still builds, but App Remote playback will be rejected.
+3. Install the APK on a device with the Spotify app (allow "install unknown apps").
+
 ## Troubleshooting
 
 | Symptom | Likely cause |
