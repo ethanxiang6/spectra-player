@@ -19,7 +19,7 @@ dependencyResolutionManagement {
         mavenCentral()
         // Spotify publishes the App Remote + Auth SDK through JitPack.
         maven("https://jitpack.io") {
-            content { includeGroup("com.github.spotify") }
+            content { includeGroupByRegex("com\\.github\\.spotify.*") }
         }
     }
 }
