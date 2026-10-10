@@ -4,10 +4,9 @@ A dark-themed Spotify companion for Android, built with Kotlin, Jetpack Compose 
 Browse your saved songs and playlists, control playback in the Spotify app, and watch a
 real-time **circular spectrum visualizer** around the album art.
 
-> **Status:** first working draft. The pure-Kotlin logic (PKCE, FFT band mapping, simulated
-> spectrum, smoothing, Premium resolution, DTO mapping) is compiled and unit-checked. The
-> Android/Compose layer has **not been built on a device yet** (the authoring environment could
-> not reach Google/Maven repositories), so expect to fix a few compile nits on first sync.
+> **Status:** first working draft. It compiles, the unit tests pass, and GitHub Actions produces a
+> debug APK. It has **not been run on a device yet**, so expect runtime rough edges (especially the
+> Spotify connection and the live visualizer).
 
 ## Features
 
@@ -86,8 +85,9 @@ app/src/main/java/com/spectra/player/
 4. Open in Android Studio (Ladybug or newer) and run, or `./gradlew installDebug`.
 5. Unit tests: `./gradlew testDebugUnitTest`.
 
-The Spotify SDK comes from JitPack (`com.github.spotify:android-app-remote-sdk`, bundling App
-Remote 0.8.0 and Auth 2.1.0); the repo is already declared in `settings.gradle.kts`.
+The Spotify App Remote SDK is vendored as `app/libs/spotify-app-remote-release-0.8.0.aar` (Apache-2.0,
+from <https://github.com/spotify/android-sdk>); Spotify doesn't publish it to Maven Central. Login uses
+our own PKCE flow, so Spotify's separate Auth library isn't needed.
 
 ## Build the APK on GitHub
 
