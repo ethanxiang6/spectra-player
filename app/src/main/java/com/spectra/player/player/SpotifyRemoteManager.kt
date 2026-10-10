@@ -39,7 +39,7 @@ class SpotifyRemoteManager(private val context: Context) {
         data object Disconnected : Connection
         data object Connecting : Connection
         data object Connected : Connection
-        data class Failed(val message: String, val spotifyMissing: Boolean = false) : Connection
+        data class Failed(val message: String, val spotifyMissing: Boolean = false, val details: String? = null) : Connection
     }
 
     private var remote: SpotifyAppRemote? = null
@@ -67,6 +67,18 @@ class SpotifyRemoteManager(private val context: Context) {
                 }
             },
         )
+    }
+
+    private fun collectLog(): String = try {
+        val proc = ProcessBuilder("logcat", "-d", "-t", "600", "-v", "time").redirectErrorStream(true).start()
+        val keep = Regex("(?i)spotify|appremote|remote|bind|service|auth|exception|W/|E/")
+        val lines = proc.inputStream.bufferedReader().readLines()
+            .filter { keep.containsMatchIn(it) && !it.contains("Choreographer") }
+            .takeLast(25)
+            .map { it.take(170) }
+        if (lines.isEmpty()) "(no log lines available)" else lines.joinToString("\n")
+    } catch (e: Exception) {
+        "(log unavailable: ${e.javaClass.simpleName})"
     }
 
     private fun spotifyAppInfo(): String = try {
@@ -105,6 +117,16 @@ class SpotifyRemoteManager(private val context: Context) {
         mainHandler.postDelayed({
             if (thisAttempt == attempt && _connection.value == Connection.Connecting) {
                 _connection.value = Connection.Failed("$CONNECT_TIMEOUT_MESSAGE ${spotifyAppInfo()}")
+                // Own-process log lines (the SDK logs here) so a screenshot shows what it was doing.
+                Thread {
+                    val log = collectLog()
+                    mainHandler.post {
+                        val cur = _connection.value
+                        if (thisAttempt == attempt && cur is Connection.Failed) {
+                            _connection.value = cur.copy(details = log)
+                        }
+                    }
+                }.start()
             }
         }, CONNECT_TIMEOUT_MS)
 

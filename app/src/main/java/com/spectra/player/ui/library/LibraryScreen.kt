@@ -441,17 +441,31 @@ private fun ConnectionBanner(connection: SpotifyRemoteManager.Connection, onRetr
     val colors = MaterialTheme.colorScheme
     when (connection) {
         is SpotifyRemoteManager.Connection.Failed -> Surface(color = colors.errorContainer) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    connection.message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.onErrorContainer,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = onRetry) { Text("Retry") }
+            var showDetails by remember { mutableStateOf(false) }
+            Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        connection.message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onErrorContainer,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = onRetry) { Text("Retry") }
+                }
+                connection.details?.let { details ->
+                    TextButton(onClick = { showDetails = !showDetails }) {
+                        Text(if (showDetails) "Hide details" else "Details")
+                    }
+                    if (showDetails) {
+                        androidx.compose.foundation.text.selection.SelectionContainer {
+                            Text(
+                                details,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.onErrorContainer,
+                            )
+                        }
+                    }
+                }
             }
         }
         SpotifyRemoteManager.Connection.Connecting -> Text(
