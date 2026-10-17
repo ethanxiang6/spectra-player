@@ -32,11 +32,6 @@
             android:theme="@style/Theme.Spectra"
             android:windowSoftInputMode="adjustResize">
 
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-
             <!-- PKCE redirect: spectra://callback?code=...&state=... (must match the Spotify dashboard) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -45,5 +40,96 @@
                 <data android:host="callback" android:scheme="spectra" />
             </intent-filter>
         </activity>
+
+        <!-- Launcher icon "Evening": exactly one of these aliases is enabled (see AppIcons). -->
+        <activity-alias
+            android:name=".icon.Evening"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_evening"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Launcher icon "Midnight": exactly one of these aliases is enabled (see AppIcons). -->
+        <activity-alias
+            android:name=".icon.Midnight"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_midnight"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Launcher icon "Sunset": exactly one of these aliases is enabled (see AppIcons). -->
+        <activity-alias
+            android:name=".icon.Sunset"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_sunset"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Launcher icon "Aurora": exactly one of these aliases is enabled (see AppIcons). -->
+        <activity-alias
+            android:name=".icon.Aurora"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_aurora"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Launcher icon "Nebula": exactly one of these aliases is enabled (see AppIcons). -->
+        <activity-alias
+            android:name=".icon.Nebula"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_nebula"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Launcher icon "Ocean": exactly one of these aliases is enabled (see AppIcons). -->
+        <activity-alias
+            android:name=".icon.Ocean"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_ocean"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Launcher icon "Black": exactly one of these aliases is enabled (see AppIcons). -->
+        <activity-alias
+            android:name=".icon.Black"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_black"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
     </application>
 </manifest>

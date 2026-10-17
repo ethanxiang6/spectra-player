@@ -84,4 +84,7 @@ interface SpotifyApi {
 
     @PUT("v1/me/player/shuffle")
     suspend fun setShuffle(@Query("state") state: Boolean): Response<Unit>
+
+    @PUT("v1/me/player/seek")
+    suspend fun seek(@Query("position_ms") positionMs: Long): Response<Unit>
 }

@@ -476,22 +476,66 @@ class SpotifyRemoteManager(
     }
 
     fun skipNext() {
-        liveRemote()?.playerApi?.skipNext() ?: webCommand { it.next() }
+        restartPositionNow()
+        val r = liveRemote()
+        if (r != null) {
+            r.playerApi.skipNext().setResultCallback { fetchStateNow(r) }
+        } else {
+            webCommand { it.next() }
+        }
     }
 
     fun skipPrevious() {
-        liveRemote()?.playerApi?.skipPrevious() ?: webCommand { it.previous() }
+        restartPositionNow()
+        val r = liveRemote()
+        if (r != null) {
+            r.playerApi.skipPrevious().setResultCallback { fetchStateNow(r) }
+        } else {
+            webCommand { it.previous() }
+        }
+    }
+
+    /**
+     * Moves the bar to the new spot immediately instead of waiting for Spotify to report it
+     * (that wait made the bar jump back and lag after a drag).
+     */
+    fun seekTo(positionMs: Long) {
+        _playback.value = _playback.value.copy(
+            positionMs = positionMs,
+            capturedAtElapsedMs = SystemClock.elapsedRealtime(),
+        )
+        val r = liveRemote()
+        if (r != null) {
+            r.playerApi.seekTo(positionMs).setResultCallback { fetchStateNow(r) }
+        } else {
+            webCommand { it.seek(positionMs) }
+        }
+    }
+
+    /** Skips show the new song from 0:00 at once; the real song info follows in a moment. */
+    private fun restartPositionNow() {
+        _playback.value = _playback.value.copy(positionMs = 0, capturedAtElapsedMs = SystemClock.elapsedRealtime())
+    }
+
+    /** Ask Spotify for the player state right away rather than waiting for its next update. */
+    private fun fetchStateNow(r: SpotifyAppRemote) {
+        if (!r.isConnected) return
+        r.playerApi.playerState
+            .setResultCallback { state -> mainHandler.post { handlePlayerState(state) } }
+            .setErrorCallback { Log.w(TAG, "Player state fetch failed: ${it.javaClass.simpleName}") }
     }
 
     private fun webCommand(block: suspend (WebPlaybackFallback) -> Boolean) {
         val web = webPlayback ?: return
         scope.launch {
             if (!block(web)) _messages.emit("Spotify didn't respond. Open Spotify and try again.")
-            delay(700)
+            delay(300)
+            refreshFromWeb()
+            delay(900)
             refreshFromWeb()
         }
     }
-    fun seekTo(positionMs: Long) { remote?.playerApi?.seekTo(positionMs) }
+
     fun toggleShuffle() { remote?.playerApi?.toggleShuffle() }
     fun toggleRepeat() { remote?.playerApi?.toggleRepeat() }
 

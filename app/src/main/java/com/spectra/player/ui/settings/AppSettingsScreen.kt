@@ -1,5 +1,27 @@
 package com.spectra.player.ui.settings
 
+import com.spectra.player.ui.theme.AppIcons
+
+import androidx.compose.ui.res.painterResource
+
+import androidx.compose.ui.platform.LocalContext
+
+import androidx.compose.ui.layout.ContentScale
+
+import androidx.compose.ui.graphics.graphicsLayer
+
+import androidx.compose.ui.graphics.Color
+
+import androidx.compose.ui.draw.clip
+
+import androidx.compose.foundation.layout.Box
+
+import androidx.compose.foundation.clickable
+
+import androidx.compose.foundation.border
+
+import androidx.compose.foundation.Image
+
 import com.spectra.player.ui.components.CoverArt
 
 import com.spectra.player.data.UserProfile
@@ -109,6 +131,30 @@ fun AppSettingsScreen(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
             )
             SwitchRow("Stars in the background", settings.stars) { on -> prefs.update { it.copy(stars = on) } }
+
+            Heading("App icon")
+            val context = LocalContext.current
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                items(AppIcons.all, key = { it.alias }) { icon ->
+                    IconChoice(
+                        icon = icon,
+                        selected = icon.theme == settings.icon,
+                        onClick = {
+                            prefs.update { it.copy(icon = icon.theme) }
+                            AppIcons.apply(context, icon.theme)
+                        },
+                    )
+                }
+            }
+            Text(
+                "Your home screen can take a few seconds to show the new icon.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+            )
             Heading("Account")
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
@@ -152,4 +198,38 @@ private fun Heading(text: String) {
         style = MaterialTheme.typography.headlineSmall,
         modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 28.dp, bottom = 12.dp),
     )
+}
+
+@Composable
+private fun IconChoice(icon: AppIcons.Icon, selected: Boolean, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable(onClick = onClick),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .border(
+                    width = if (selected) 2.dp else 0.dp,
+                    color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    shape = CircleShape,
+                ),
+        ) {
+            // Adaptive-icon layers drawn like a round launcher icon (the foreground is 108dp with a
+            // 72dp safe zone, so it is scaled up to fill the circle the way launchers crop it).
+            Image(painterResource(icon.background), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            Image(
+                painterResource(icon.foreground),
+                null,
+                modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = 1.45f; scaleY = 1.45f },
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            icon.alias,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }

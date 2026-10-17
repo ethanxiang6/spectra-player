@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.asStateFlow
 data class AppSettings(
     val theme: Backdrop = Backdrop.EVENING,
     val stars: Boolean = true,
+    /** Launcher icon theme. */
+    val icon: Backdrop = Backdrop.EVENING,
 ) {
     companion object {
         /** Album art only makes sense on the visualizer. */
@@ -28,6 +30,7 @@ class AppPrefs(context: Context) {
         prefs.edit()
             .putString(KEY_THEME, next.theme.name)
             .putBoolean(KEY_STARS, next.stars)
+            .putString(KEY_ICON, next.icon.name)
             .apply()
     }
 
@@ -35,11 +38,14 @@ class AppPrefs(context: Context) {
         val d = AppSettings()
         val theme = prefs.getString(KEY_THEME, null)
             ?.let { name -> AppSettings.themes.firstOrNull { it.name == name } } ?: d.theme
-        return AppSettings(theme = theme, stars = prefs.getBoolean(KEY_STARS, d.stars))
+        val icon = prefs.getString(KEY_ICON, null)
+            ?.let { name -> AppSettings.themes.firstOrNull { it.name == name } } ?: d.icon
+        return AppSettings(theme = theme, stars = prefs.getBoolean(KEY_STARS, d.stars), icon = icon)
     }
 
     private companion object {
         const val KEY_THEME = "theme"
         const val KEY_STARS = "stars"
+        const val KEY_ICON = "icon"
     }
 }

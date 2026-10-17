@@ -25,7 +25,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 2
-        versionName = "1.7.0" + (System.getenv("GITHUB_RUN_NUMBER")?.let { "-build.$it" } ?: "")
+        versionName = "1.8.0"
 
         buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"$spotifyClientId\"")
         buildConfigField("String", "SPOTIFY_REDIRECT_URI", "\"spectra://callback\"")
@@ -50,10 +50,13 @@ android {
     buildTypes {
         debug {
             signingConfigs.findByName("ci")?.let { signingConfig = it }
+            versionNameSuffix = "-debug" + (System.getenv("GITHUB_RUN_NUMBER")?.let { ".$it" } ?: "")
         }
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            signingConfigs.findByName("ci")?.let { signingConfig = it }
+            // No code shrinking: the Spotify SDK relies on reflection that R8 can break.
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -68,6 +71,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+
+    lint {
+        checkReleaseBuilds = false
+    }
 
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
