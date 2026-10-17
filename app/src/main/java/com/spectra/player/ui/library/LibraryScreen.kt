@@ -478,12 +478,26 @@ private fun ConnectionBanner(
                 }
             }
         }
+        SpotifyRemoteManager.Connection.NeedsApproval -> Surface(color = colors.secondaryContainer) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "To play music, Spotify needs to approve Spectra once. Tap the button, allow Spectra in Spotify, then come back.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.onSecondaryContainer,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onApprove) { Text("Approve in Spotify") }
+            }
+        }
         SpotifyRemoteManager.Connection.Connecting -> Row(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "Connecting to Spotify… If it doesn't connect, approve Spectra in Spotify.",
+                "Connecting to Spotify…",
                 style = MaterialTheme.typography.labelMedium,
                 color = colors.onSurfaceVariant,
                 modifier = Modifier.weight(1f),

@@ -25,7 +25,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 2
-        versionName = "1.0.3" + (System.getenv("GITHUB_RUN_NUMBER")?.let { "-build.$it" } ?: "")
+        versionName = "1.0.4" + (System.getenv("GITHUB_RUN_NUMBER")?.let { "-build.$it" } ?: "")
 
         buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"$spotifyClientId\"")
         buildConfigField("String", "SPOTIFY_REDIRECT_URI", "\"spectra://callback\"")

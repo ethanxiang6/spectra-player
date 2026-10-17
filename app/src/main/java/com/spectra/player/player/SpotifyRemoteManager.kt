@@ -46,6 +46,8 @@ class SpotifyRemoteManager(
         data object Disconnected : Connection
         data object Connecting : Connection
         data object Connected : Connection
+        /** Spotify hasn't approved Spectra yet; the approval screen must be shown with Spotify visible. */
+        data object NeedsApproval : Connection
         data class Failed(val message: String, val spotifyMissing: Boolean = false, val details: String? = null) : Connection
     }
 
@@ -55,6 +57,13 @@ class SpotifyRemoteManager(
     private var pendingPlayUri: String? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private var attempt = 0
+
+    // The SDK keeps a single static connector, so only one connect may run at a time. Starting a
+    // second one while the first is pending corrupts both (calls then fail with
+    // SpotifyDisconnectedException).
+    private var inFlight = false
+    private var connectAgainWithAuthView: Boolean? = null
+    private var lastConnectedAt = 0L
 
     // Spotify's own sample connects with an Activity context; the "allow this app" sheet and the
     // service binding are more reliable that way than with the bare application context.
@@ -133,20 +142,41 @@ class SpotifyRemoteManager(
             Log.w(TAG, "Couldn't open Spotify: ${e.javaClass.simpleName}")
         }
         _connection.value = Connection.Connecting
-        mainHandler.postDelayed({ connect(force = true) }, SPOTIFY_HANDOFF_DELAY_MS)
+        mainHandler.postDelayed({ requestConnect(showAuthView = true) }, SPOTIFY_HANDOFF_DELAY_MS)
     }
 
+    /**
+     * Connects without asking Spotify to show its approval screen (that screen is blocked unless
+     * Spotify is visible). If Spectra isn't approved yet this ends in [Connection.NeedsApproval].
+     */
     fun connect(force: Boolean = false) {
-        if (_connection.value == Connection.Connected) return
-        if (!force && _connection.value == Connection.Connecting) return
+        if (!force && _connection.value == Connection.NeedsApproval) return
+        requestConnect(showAuthView = false)
+    }
+
+    private fun requestConnect(showAuthView: Boolean) {
+        val live = remote
+        if (live != null && live.isConnected) {
+            _connection.value = Connection.Connected
+            return
+        }
+        if (live != null) dropRemote()
         _connection.value = Connection.Connecting
+        if (inFlight) {
+            // Let the running attempt finish, then go again (with the approval screen if asked).
+            connectAgainWithAuthView = (connectAgainWithAuthView ?: false) || showAuthView
+            return
+        }
+        startSdkConnect(showAuthView)
+    }
+
+    private fun startSdkConnect(showAuthView: Boolean) {
+        inFlight = true
+        connectAgainWithAuthView = null
         val thisAttempt = ++attempt
-        // The SDK can wait forever when the Spotify app never answers (e.g. the fingerprint isn't
-        // registered, or Device Broadcast Status is off). Turn that into an actionable message.
         mainHandler.postDelayed({
             if (thisAttempt == attempt && _connection.value == Connection.Connecting) {
                 _connection.value = Connection.Failed("$CONNECT_TIMEOUT_MESSAGE ${spotifyAppInfo()}")
-                // Own-process log lines (the SDK logs here) so a screenshot shows what it was doing.
                 Thread {
                     val log = collectLog()
                     mainHandler.post {
@@ -161,34 +191,71 @@ class SpotifyRemoteManager(
 
         val params = ConnectionParams.Builder(AuthConfig.clientId)
             .setRedirectUri(AuthConfig.redirectUri)
-            .showAuthView(true) // Spotify shows its one-time "allow this app" sheet
+            .showAuthView(showAuthView)
             .build()
 
         SpotifyAppRemote.connect(
             foreground?.get()?.takeUnless { it.isFinishing || it.isDestroyed } ?: context,
             params,
             object : Connector.ConnectionListener {
+                private var connected: SpotifyAppRemote? = null
+
                 override fun onConnected(appRemote: SpotifyAppRemote) {
-                    if (remote != null) {
-                        // An earlier attempt already connected; drop the duplicate.
-                        SpotifyAppRemote.disconnect(appRemote)
-                        return
+                    mainHandler.post {
+                        connected = appRemote
+                        inFlight = false
+                        attempt++
+                        remote = appRemote
+                        lastConnectedAt = SystemClock.elapsedRealtime()
+                        connectAgainWithAuthView = null
+                        _connection.value = Connection.Connected
+                        onConnected(appRemote)
                     }
-                    attempt++
-                    remote = appRemote
-                    _connection.value = Connection.Connected
-                    onConnected(appRemote)
                 }
 
                 override fun onFailure(error: Throwable) {
-                    Log.w(TAG, "App Remote connect failed: ${error.javaClass.simpleName}")
-                    // A newer attempt (e.g. via the Spotify hand-off) supersedes this one.
-                    if (thisAttempt != attempt || remote != null) return
-                    attempt++
-                    _connection.value = error.toFailure()
+                    mainHandler.post {
+                        Log.w(TAG, "App Remote failure: ${error.javaClass.simpleName}")
+                        val wasConnected = connected
+                        if (wasConnected != null) {
+                            // The live connection was closed by Spotify (or by us).
+                            if (remote === wasConnected) onConnectionLost()
+                            return@post
+                        }
+                        inFlight = false
+                        val again = connectAgainWithAuthView
+                        if (again != null) {
+                            startSdkConnect(again)
+                            return@post
+                        }
+                        if (thisAttempt == attempt) {
+                            attempt++
+                            _connection.value = error.toFailure()
+                        }
+                    }
                 }
             },
         )
+    }
+
+    private fun onConnectionLost() {
+        dropRemote()
+        val connectedFor = SystemClock.elapsedRealtime() - lastConnectedAt
+        if (connectedFor > AUTO_RECONNECT_MIN_UPTIME_MS) {
+            requestConnect(showAuthView = false)
+        } else {
+            _connection.value = Connection.Failed(
+                "Spotify closed the connection right after it opened. Tap Retry, or Approve in Spotify.",
+            )
+        }
+    }
+
+    /** Forgets the current App Remote instance without touching the SDK's shared connector. */
+    private fun dropRemote() {
+        playerSubscription?.cancel()
+        playerSubscription = null
+        remote = null
+        _connection.value = Connection.Disconnected
     }
 
     fun disconnect() {
@@ -199,6 +266,7 @@ class SpotifyRemoteManager(
         remote = null
         lastImageUri = null
         pendingPlayUri = null
+        connectAgainWithAuthView = null
         _playback.value = PlaybackState.Idle
         _artwork.value = null
         _canPlayOnDemand.value = null
@@ -210,12 +278,29 @@ class SpotifyRemoteManager(
     /** Plays a Spotify URI (track, album or playlist). Connects first if needed. */
     fun play(uri: String) {
         val r = remote
-        if (r == null || _connection.value != Connection.Connected) {
+        if (r == null || !r.isConnected) {
             pendingPlayUri = uri
-            connect()
+            if (_connection.value == Connection.NeedsApproval) {
+                _messages.tryEmit("Tap \"Approve in Spotify\" first, then try again.")
+            } else {
+                connect(force = true)
+            }
             return
         }
-        r.playerApi.play(uri).setErrorCallback { error -> playViaWebApi(uri, error) }
+        r.playerApi.play(uri).setErrorCallback { error ->
+            mainHandler.post {
+                if (error is com.spotify.android.appremote.api.error.SpotifyDisconnectedException ||
+                    error is com.spotify.android.appremote.api.error.SpotifyConnectionTerminatedException
+                ) {
+                    // Stale connection: reconnect and play once connected.
+                    if (remote === r) dropRemote()
+                    pendingPlayUri = uri
+                    requestConnect(showAuthView = false)
+                } else {
+                    playViaWebApi(uri, error)
+                }
+            }
+        }
     }
 
     fun togglePlayPause() {
@@ -304,12 +389,13 @@ class SpotifyRemoteManager(
     }
 
     /** Maps SDK exceptions by name so a renamed class never breaks compilation. */
-    private fun Throwable.toFailure(): Connection.Failed = when (javaClass.simpleName) {
+    private fun Throwable.toFailure(): Connection = when (javaClass.simpleName) {
         "CouldNotFindSpotifyApp" ->
             Connection.Failed("The Spotify app isn't installed. Install it to play music.", spotifyMissing = true)
         "NotLoggedInException" ->
             Connection.Failed("Open the Spotify app and log in, then try again.")
-        "UserNotAuthorizedException", "AuthenticationFailedException" ->
+        "UserNotAuthorizedException" -> Connection.NeedsApproval
+        "AuthenticationFailedException" ->
             Connection.Failed(
                 "Spotify didn't authorize this app. Check the Client ID, package name, " +
                     "SHA-1 fingerprint and redirect URI in the Spotify dashboard.",
@@ -331,5 +417,6 @@ class SpotifyRemoteManager(
                 "screen. Tap \"Approve in Spotify\", allow Spectra there, then come back."
         const val SPOTIFY_PACKAGE = "com.spotify.music"
         const val SPOTIFY_HANDOFF_DELAY_MS = 1_200L
+        const val AUTO_RECONNECT_MIN_UPTIME_MS = 5_000L
     }
 }

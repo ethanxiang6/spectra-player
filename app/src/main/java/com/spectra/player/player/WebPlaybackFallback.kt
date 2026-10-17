@@ -21,14 +21,11 @@ class WebPlaybackFallback(private val api: SpotifyApi) {
             ?: devices.firstOrNull { it.type.equals("Smartphone", true) }
             ?: devices.firstOrNull()
         if (target == null) {
-            "Spotify isn't showing up as a device. Open Spotify, play anything for a second, then try again."
+            // No device listed: let Spotify pick the most recently used one.
+            val response = api.startPlayback(null, bodyFor(uri))
+            if (response.isSuccessful) null else describe(response.code(), response.errorBody()?.string())
         } else {
-            val body = if (uri.startsWith("spotify:track:") || uri.startsWith("spotify:episode:")) {
-                PlayBodyDto(uris = listOf(uri))
-            } else {
-                PlayBodyDto(contextUri = uri)
-            }
-            val response = api.startPlayback(target.id, body)
+            val response = api.startPlayback(target.id, bodyFor(uri))
             if (response.isSuccessful) null else describe(response.code(), response.errorBody()?.string())
         }
     } catch (e: HttpException) {
@@ -37,6 +34,13 @@ class WebPlaybackFallback(private val api: SpotifyApi) {
         Log.w(TAG, "Web playback failed: ${e.javaClass.simpleName}")
         e.javaClass.simpleName
     }
+
+    private fun bodyFor(uri: String) =
+        if (uri.startsWith("spotify:track:") || uri.startsWith("spotify:episode:")) {
+            PlayBodyDto(uris = listOf(uri))
+        } else {
+            PlayBodyDto(contextUri = uri)
+        }
 
     private fun describe(code: Int, body: String?): String {
         val detail = body?.let { Regex("\"message\"\\s*:\\s*\"([^\"]+)\"").find(it)?.groupValues?.get(1) }
