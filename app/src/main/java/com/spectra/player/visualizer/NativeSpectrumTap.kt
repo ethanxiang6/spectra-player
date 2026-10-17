@@ -18,7 +18,7 @@ class NativeSpectrumTap private constructor(
     bands: Int,
 ) {
     private val fft = ByteArray(visualizer.captureSize)
-    private val leveler = BandLeveler(bands)
+    private val shaper = LiveShaper(bands)
     private val mapper = BandMapper(
         bands = bands,
         fftSize = fft.size,
@@ -34,7 +34,7 @@ class NativeSpectrumTap private constructor(
         }
         if (status != Visualizer.SUCCESS) return -1f
         val peak = mapper.map(fft, out)
-        leveler.apply(out)
+        shaper.apply(out)
         return peak // raw peak: used for silence detection
     }
 

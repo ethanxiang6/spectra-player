@@ -3,6 +3,7 @@ package com.spectra.player
 import com.spectra.player.data.AudioProfile
 import com.spectra.player.visualizer.BandLeveler
 import com.spectra.player.visualizer.BandMapper
+import com.spectra.player.visualizer.LiveShaper
 import com.spectra.player.visualizer.SimulatedSpectrum
 import com.spectra.player.visualizer.SpectrumSmoother
 import org.junit.Assert.assertEquals
@@ -93,5 +94,26 @@ class SpectrumMathTest {
         }
         assertTrue("bass=${frame[0]} treble=${frame[1]}", abs(frame[0] - frame[1]) < 0.1f)
         assertTrue(frame[0] <= 0.8f && frame[1] <= 0.8f)
+    }
+
+    @Test
+    fun liveShaperKeepsTheRingRoundAndJumpsOnABassHit() {
+        val bands = 48
+        val shaper = LiveShaper(bands)
+        val frame = FloatArray(bands)
+        // Steady music, loud bass and quiet treble: ring should be close to a circle.
+        repeat(240) {
+            for (i in 0 until bands) frame[i] = if (i < 6) 0.8f else 0.3f
+            shaper.apply(frame)
+        }
+        val spread = frame.max() - frame.min()
+        assertTrue("spread=$spread", spread < 0.2f)
+        val resting = frame.average()
+
+        // A kick: bass jumps.
+        for (i in 0 until bands) frame[i] = if (i < 6) 1f else 0.3f
+        shaper.apply(frame)
+        assertTrue("resting=$resting after=${frame.average()}", frame.average() > resting + 0.1)
+        assertTrue(frame.all { it <= 0.72f })
     }
 }
