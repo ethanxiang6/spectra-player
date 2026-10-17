@@ -135,6 +135,11 @@ fun NowPlayingScreen(
     // Live audio only when the user switched it on in settings (and the permission is granted).
     LaunchedEffect(micGranted, settings.liveAudio) {
         viewModel.setLiveAllowed(micGranted && settings.liveAudio)
+        // Live audio is on by default: ask for the permission once, the first time it's needed.
+        if (settings.liveAudio && !micGranted && !settings.askedForMic) {
+            viewModel.updateSettings { it.copy(askedForMic = true) }
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
     }
 
     var controlsVisible by remember { mutableStateOf(false) }

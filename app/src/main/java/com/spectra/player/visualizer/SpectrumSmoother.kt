@@ -8,8 +8,8 @@ import kotlin.math.exp
  */
 class SpectrumSmoother(
     private val size: Int,
-    private val attackMs: Float = 45f,
-    private val releaseMs: Float = 160f,
+    private val attackMs: Float = 60f,
+    private val releaseMs: Float = 200f,
 ) {
     private val state = FloatArray(size)
     private val blurred = FloatArray(size)
