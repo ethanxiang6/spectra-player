@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import com.spectra.player.ui.image.ArtImage
 import com.spectra.player.visualizer.Backdrop
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -142,7 +142,7 @@ fun SkyBackdrop(
                 .blur(60.dp)
             when {
                 artwork != null -> Image(artwork, null, contentScale = ContentScale.Crop, modifier = blurred)
-                imageUrl != null -> AsyncImage(imageUrl, null, contentScale = ContentScale.Crop, modifier = blurred)
+                imageUrl != null -> ArtImage(url = imageUrl, contentDescription = null, modifier = blurred)
             }
             Spacer(
                 Modifier

@@ -93,7 +93,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
+import com.spectra.player.ui.image.ArtImage
 import com.spectra.player.data.formatTime
 import com.spectra.player.player.NowPlayingTrack
 import com.spectra.player.player.PlaybackState
@@ -332,10 +332,9 @@ private fun AlbumDisc(artwork: ImageBitmap?, imageUrl: String?, modifier: Modifi
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
-            imageUrl != null -> AsyncImage(
-                model = imageUrl,
+            imageUrl != null -> ArtImage(
+                url = imageUrl,
                 contentDescription = "Album art",
-                contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
             else -> Icon(

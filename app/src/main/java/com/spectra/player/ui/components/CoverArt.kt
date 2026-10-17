@@ -12,10 +12,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import com.spectra.player.ui.image.ArtImage
 
 /** Remote cover image with a tonal placeholder (shown while loading and when there is no image). */
 @Composable
@@ -36,12 +35,7 @@ fun CoverArt(
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
         )
         if (url != null) {
-            AsyncImage(
-                model = url,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
+            ArtImage(url = url, contentDescription = null, modifier = Modifier.fillMaxSize())
         }
     }
 }

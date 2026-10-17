@@ -43,7 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import com.spectra.player.ui.image.ArtImage
 import com.spectra.player.player.PlaybackState
 import com.spectra.player.ui.nowplaying.Dusk
 import kotlinx.coroutines.delay
@@ -92,10 +92,9 @@ fun MiniPlayer(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
                     )
-                    track.imageUrl != null -> AsyncImage(
-                        model = track.imageUrl,
+                    track.imageUrl != null -> ArtImage(
+                        url = track.imageUrl,
                         contentDescription = null,
-                        contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
                     )
                     else -> Icon(Icons.Rounded.MusicNote, contentDescription = null, tint = Dusk.TextDim)

@@ -492,7 +492,15 @@ class SpotifyRemoteManager(
 
     private fun loadArtwork(uri: ImageUri) {
         remote?.imagesApi?.getImage(uri, Image.Dimension.LARGE)
-            ?.setResultCallback { bitmap -> _artwork.value = bitmap.asImageBitmap() }
+            ?.setResultCallback { bitmap ->
+                // Trim baked-in borders and centre-crop to a square, off the main thread.
+                scope.launch {
+                    val art = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                        com.spectra.player.ui.image.ArtworkCrop.squareCrop(bitmap).asImageBitmap()
+                    }
+                    if (lastImageUri == uri.raw) _artwork.value = art
+                }
+            }
             ?.setErrorCallback { Log.w(TAG, "Artwork load failed: ${it.javaClass.simpleName}") }
     }
 
