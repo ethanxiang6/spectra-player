@@ -105,11 +105,33 @@ class SpotifyRemoteManager(private val context: Context) {
     /** One-off messages for a snackbar (e.g. "Premium required"). */
     val messages: SharedFlow<String> = _messages.asSharedFlow()
 
-    fun connect() {
-        when (_connection.value) {
-            Connection.Connecting, Connection.Connected -> return
-            else -> Unit
+    /**
+     * The first connection needs the user's approval, which the Spotify app shows in its own
+     * screen. Recent Android versions block that screen when Spotify isn't visible ("Background
+     * activity launch blocked"), so the connection just waits. This brings Spotify to the front
+     * first, then connects, so Spotify is allowed to show the approval. Approval is remembered.
+     */
+    fun connectViaSpotify(activity: Activity) {
+        val launch = context.packageManager.getLaunchIntentForPackage(SPOTIFY_PACKAGE)
+        if (launch == null) {
+            _connection.value = Connection.Failed(
+                "The Spotify app isn't installed. Install it to play music.",
+                spotifyMissing = true,
+            )
+            return
         }
+        try {
+            activity.startActivity(launch)
+        } catch (e: Exception) {
+            Log.w(TAG, "Couldn't open Spotify: ${e.javaClass.simpleName}")
+        }
+        _connection.value = Connection.Connecting
+        mainHandler.postDelayed({ connect(force = true) }, SPOTIFY_HANDOFF_DELAY_MS)
+    }
+
+    fun connect(force: Boolean = false) {
+        if (_connection.value == Connection.Connected) return
+        if (!force && _connection.value == Connection.Connecting) return
         _connection.value = Connection.Connecting
         val thisAttempt = ++attempt
         // The SDK can wait forever when the Spotify app never answers (e.g. the fingerprint isn't
@@ -140,6 +162,11 @@ class SpotifyRemoteManager(private val context: Context) {
             params,
             object : Connector.ConnectionListener {
                 override fun onConnected(appRemote: SpotifyAppRemote) {
+                    if (remote != null) {
+                        // An earlier attempt already connected; drop the duplicate.
+                        SpotifyAppRemote.disconnect(appRemote)
+                        return
+                    }
                     attempt++
                     remote = appRemote
                     _connection.value = Connection.Connected
@@ -148,8 +175,9 @@ class SpotifyRemoteManager(private val context: Context) {
 
                 override fun onFailure(error: Throwable) {
                     Log.w(TAG, "App Remote connect failed: ${error.javaClass.simpleName}")
+                    // A newer attempt (e.g. via the Spotify hand-off) supersedes this one.
+                    if (thisAttempt != attempt || remote != null) return
                     attempt++
-                    remote = null
                     _connection.value = error.toFailure()
                 }
             },
@@ -278,8 +306,9 @@ class SpotifyRemoteManager(private val context: Context) {
         // specific error. Wait slightly longer than both so that real error wins over our generic one.
         const val CONNECT_TIMEOUT_MS = 65_000L
         const val CONNECT_TIMEOUT_MESSAGE =
-            "Spotify didn't respond. Open the Spotify app once, turn on Settings > Playback > " +
-                "Device Broadcast Status, and make sure this app's SHA-1 is registered under " +
-                "Android Packages in the Spotify dashboard. Then tap Retry."
+            "Spotify needs your approval, but Android stopped it from showing the approval " +
+                "screen. Tap \"Approve in Spotify\", allow Spectra there, then come back."
+        const val SPOTIFY_PACKAGE = "com.spotify.music"
+        const val SPOTIFY_HANDOFF_DELAY_MS = 1_200L
     }
 }

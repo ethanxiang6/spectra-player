@@ -128,7 +128,8 @@ class LibraryViewModel(
         loadMorePlaylists()
     }
 
-    fun connectRemote() = remote.connect()
+    fun connectRemote() = remote.connect(force = true)
+    fun connectViaSpotify(activity: android.app.Activity) = remote.connectViaSpotify(activity)
     fun play(track: Track) = remote.play(track.uri)
     fun togglePlayPause() = remote.togglePlayPause()
 

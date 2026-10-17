@@ -126,7 +126,12 @@ fun LibraryScreen(
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            ConnectionBanner(connection, onRetry = viewModel::connectRemote)
+            val bannerContext = LocalContext.current
+            ConnectionBanner(
+                connection,
+                onRetry = viewModel::connectRemote,
+                onApprove = { bannerContext.findActivity()?.let(viewModel::connectViaSpotify) },
+            )
 
             PrimaryTabRow(
                 selectedTabIndex = tab,
@@ -437,45 +442,62 @@ private fun ProfileMenu(profile: UserProfile?, onSignOut: () -> Unit) {
 }
 
 @Composable
-private fun ConnectionBanner(connection: SpotifyRemoteManager.Connection, onRetry: () -> Unit) {
+private fun ConnectionBanner(
+    connection: SpotifyRemoteManager.Connection,
+    onRetry: () -> Unit,
+    onApprove: () -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     when (connection) {
         is SpotifyRemoteManager.Connection.Failed -> Surface(color = colors.errorContainer) {
             var showDetails by remember { mutableStateOf(false) }
             Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp)) {
+                Text(
+                    connection.message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.onErrorContainer,
+                    modifier = Modifier.padding(end = 8.dp),
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        connection.message,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onErrorContainer,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(onClick = onRetry) { Text("Retry") }
-                }
-                connection.details?.let { details ->
-                    TextButton(onClick = { showDetails = !showDetails }) {
-                        Text(if (showDetails) "Hide details" else "Details")
+                    if (!connection.spotifyMissing) {
+                        TextButton(onClick = onApprove) { Text("Approve in Spotify") }
                     }
-                    if (showDetails) {
+                    TextButton(onClick = onRetry) { Text("Retry") }
+                    connection.details?.let {
+                        TextButton(onClick = { showDetails = !showDetails }) {
+                            Text(if (showDetails) "Hide details" else "Details")
+                        }
+                    }
+                }
+                if (showDetails) {
+                    connection.details?.let { details ->
                         androidx.compose.foundation.text.selection.SelectionContainer {
-                            Text(
-                                details,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = colors.onErrorContainer,
-                            )
+                            Text(details, style = MaterialTheme.typography.labelSmall, color = colors.onErrorContainer)
                         }
                     }
                 }
             }
         }
-        SpotifyRemoteManager.Connection.Connecting -> Text(
-            "Connecting to Spotify… the first time can take up to a minute. If Spotify shows an \"Allow\" screen, accept it.",
-            style = MaterialTheme.typography.labelMedium,
-            color = colors.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-        )
+        SpotifyRemoteManager.Connection.Connecting -> Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Connecting to Spotify… If it doesn't connect, approve Spectra in Spotify.",
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onApprove) { Text("Approve in Spotify") }
+        }
         else -> Unit
     }
+}
+
+private tailrec fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
+    is android.app.Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 @Composable
