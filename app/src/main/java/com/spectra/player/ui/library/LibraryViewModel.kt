@@ -11,6 +11,7 @@ import com.spectra.player.data.repository.LibraryRepository
 import com.spectra.player.data.repository.NetworkMonitor
 import com.spectra.player.data.userMessage
 import com.spectra.player.player.SpotifyRemoteManager
+import com.spectra.player.player.toNowPlaying
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -130,7 +131,8 @@ class LibraryViewModel(
 
     fun connectRemote() = remote.connect(force = true)
     fun connectViaSpotify(activity: android.app.Activity) = remote.connectViaSpotify(activity)
-    fun play(track: Track) = remote.play(track.uri)
+    fun play(track: Track) = remote.play(track.uri, track.toNowPlaying())
+    fun skipNext() = remote.skipNext()
     fun togglePlayPause() = remote.togglePlayPause()
 
     fun signOut() {

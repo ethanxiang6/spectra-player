@@ -108,3 +108,10 @@ data class PlayBodyDto(
     val uris: List<String>? = null,
     @SerialName("context_uri") val contextUri: String? = null,
 )
+
+@Serializable
+data class CurrentlyPlayingDto(
+    @SerialName("is_playing") val isPlaying: Boolean = false,
+    @SerialName("progress_ms") val progressMs: Long? = null,
+    val item: TrackDto? = null,
+)

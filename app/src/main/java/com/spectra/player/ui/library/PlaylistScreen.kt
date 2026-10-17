@@ -71,6 +71,7 @@ fun PlaylistScreen(
                 artwork = artwork,
                 onOpen = onOpenNowPlaying,
                 onTogglePlay = viewModel::togglePlayPause,
+                onNext = viewModel::skipNext,
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },

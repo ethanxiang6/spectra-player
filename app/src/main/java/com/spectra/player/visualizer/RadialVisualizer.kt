@@ -74,17 +74,22 @@ fun RadialSpectrumVisualizer(
     modifier: Modifier = Modifier,
     /** Radius of the central disc as a fraction of half the visualizer's size (the art's diameter = this x width). */
     innerRadiusFraction: Float = 0.56f,
+    /** Sweep-gradient colours; defaults to the theme's primary / secondary / tertiary. */
+    colors: List<Color>? = null,
+    /** False: no tap / drag handling, so a parent can use taps (e.g. to show controls). */
+    interactive: Boolean = true,
+    /** Draws a soft, wide underlay so the ring glows against a dark background. */
+    glow: Boolean = false,
     centerContent: @Composable BoxScope.() -> Unit = {},
 ) {
     var touch by remember { mutableStateOf<Offset?>(null) }
     val scheme = MaterialTheme.colorScheme
-    val palette = remember(scheme.primary, scheme.secondary, scheme.tertiary) {
-        listOf(scheme.primary, scheme.secondary, scheme.tertiary, scheme.primary)
+    val palette = remember(scheme.primary, scheme.secondary, scheme.tertiary, colors) {
+        colors ?: listOf(scheme.primary, scheme.secondary, scheme.tertiary, scheme.primary)
     }
 
-    Box(
-        modifier = modifier
-            .aspectRatio(1f)
+    val gestures = if (interactive) {
+        Modifier
             .semantics { contentDescription = "Audio visualizer. Tap to change style." }
             .pointerInput(style) {
                 detectTapGestures(onTap = { onStyleChange(style.next()) })
@@ -96,7 +101,15 @@ fun RadialSpectrumVisualizer(
                     onDragEnd = { touch = null },
                     onDragCancel = { touch = null },
                 )
-            },
+            }
+    } else {
+        Modifier.semantics { contentDescription = "Audio visualizer" }
+    }
+
+    Box(
+        modifier = modifier
+            .aspectRatio(1f)
+            .then(gestures),
         contentAlignment = Alignment.Center,
     ) {
         Canvas(Modifier.fillMaxSize()) {
@@ -120,9 +133,9 @@ fun RadialSpectrumVisualizer(
             )
 
             when (style) {
-                VisualizerStyle.BARS -> drawBars(bins, center, inner, maxLen, brush, touchAngle)
-                VisualizerStyle.WAVE -> drawWave(bins, center, inner, maxLen, brush, touchAngle)
-                VisualizerStyle.DOTS -> drawDots(bins, center, inner, maxLen, brush, touchAngle)
+                VisualizerStyle.BARS -> drawBars(bins, center, inner, maxLen, brush, touchAngle, glow)
+                VisualizerStyle.WAVE -> drawWave(bins, center, inner, maxLen, brush, touchAngle, glow)
+                VisualizerStyle.DOTS -> drawDots(bins, center, inner, maxLen, brush, touchAngle, glow)
             }
         }
         centerContent()
@@ -149,6 +162,7 @@ private fun DrawScope.drawBars(
     maxLen: Float,
     brush: Brush,
     touchAngle: Float?,
+    glow: Boolean,
 ) {
     val slots = bins.size * 2
     val barWidth = (TAU * inner / slots) * 0.55f
@@ -157,6 +171,16 @@ private fun DrawScope.drawBars(
         val level = min(1f, bins[mirroredIndex(slot, bins.size)] + touchBoost(angle, touchAngle))
         val length = max(barWidth, level * maxLen)
         val dir = Offset(cos(angle), sin(angle))
+        if (glow) {
+            drawLine(
+                brush = brush,
+                start = center + dir * inner,
+                end = center + dir * (inner + length),
+                strokeWidth = barWidth * 2.8f,
+                cap = StrokeCap.Round,
+                alpha = 0.14f + 0.18f * level,
+            )
+        }
         drawLine(
             brush = brush,
             start = center + dir * inner,
@@ -174,6 +198,7 @@ private fun DrawScope.drawWave(
     maxLen: Float,
     brush: Brush,
     touchAngle: Float?,
+    glow: Boolean,
 ) {
     val n = bins.size * 2
     val points = Array(n) { slot ->
@@ -196,6 +221,7 @@ private fun DrawScope.drawWave(
         close()
     }
     drawPath(path, brush = brush, alpha = 0.16f)
+    if (glow) drawPath(path, brush = brush, alpha = 0.22f, style = Stroke(width = 10.dp.toPx(), join = StrokeJoin.Round))
     drawPath(path, brush = brush, style = Stroke(width = 3.dp.toPx(), join = StrokeJoin.Round))
 }
 
@@ -206,6 +232,7 @@ private fun DrawScope.drawDots(
     maxLen: Float,
     brush: Brush,
     touchAngle: Float?,
+    glow: Boolean,
 ) {
     val slots = bins.size * 2
     for (slot in 0 until slots) {
@@ -215,6 +242,7 @@ private fun DrawScope.drawDots(
         val radius = 1.6.dp.toPx() + level * 2.8.dp.toPx()
         // Faint resting ring + the reactive dot that lifts off it.
         drawCircle(Color.White.copy(alpha = 0.08f), 1.4.dp.toPx(), center + dir * inner)
+        if (glow) drawCircle(brush, radius * 2.6f, center + dir * (inner + level * maxLen), alpha = 0.18f)
         drawCircle(brush, radius, center + dir * (inner + level * maxLen))
     }
 }

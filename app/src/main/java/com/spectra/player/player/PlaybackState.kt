@@ -9,6 +9,8 @@ data class NowPlayingTrack(
     val album: String,
     val durationMs: Long,
     val imageUri: String?,
+    /** HTTP artwork (Web API), used when App Remote hasn't delivered a bitmap. */
+    val imageUrl: String? = null,
 )
 
 data class PlaybackState(
@@ -35,3 +37,14 @@ data class PlaybackState(
         )
     }
 }
+
+/** Library track -> the bar's provisional "now playing" entry. */
+fun com.spectra.player.data.Track.toNowPlaying() = NowPlayingTrack(
+    uri = uri,
+    name = name,
+    artist = artists,
+    album = album,
+    durationMs = durationMs,
+    imageUri = null,
+    imageUrl = imageUrl,
+)

@@ -2,6 +2,7 @@ package com.spectra.player.player
 
 import android.os.Build
 import android.util.Log
+import android.os.SystemClock
 import com.spectra.player.data.remote.PlayBodyDto
 import com.spectra.player.data.remote.SpotifyApi
 import retrofit2.HttpException
@@ -33,6 +34,48 @@ class WebPlaybackFallback(private val api: SpotifyApi) {
     } catch (e: Exception) {
         Log.w(TAG, "Web playback failed: ${e.javaClass.simpleName}")
         e.javaClass.simpleName
+    }
+
+    /** What Spotify is playing right now, or null if nothing / unavailable. */
+    suspend fun currentlyPlaying(): PlaybackState? = try {
+        val response = api.currentlyPlaying()
+        val dto = response.body()
+        val item = dto?.item
+        if (!response.isSuccessful || dto == null || item == null) {
+            null
+        } else {
+            PlaybackState(
+                track = NowPlayingTrack(
+                    uri = item.uri,
+                    name = item.name,
+                    artist = item.artists.orEmpty().joinToString(", ") { it.name },
+                    album = item.album?.name.orEmpty(),
+                    durationMs = item.durationMs,
+                    imageUri = null,
+                    imageUrl = item.album?.images?.maxByOrNull { it.width ?: 0 }?.url,
+                ),
+                isPlaying = dto.isPlaying,
+                positionMs = dto.progressMs ?: 0L,
+                capturedAtElapsedMs = SystemClock.elapsedRealtime(),
+                isShuffling = false,
+                repeatMode = 0,
+            )
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "currently-playing failed: ${e.javaClass.simpleName}")
+        null
+    }
+
+    suspend fun pause(): Boolean = call { api.pausePlayback() }
+    suspend fun resume(): Boolean = call { api.startPlayback(null, PlayBodyDto()) }
+    suspend fun next(): Boolean = call { api.nextTrack() }
+    suspend fun previous(): Boolean = call { api.previousTrack() }
+
+    private suspend fun call(block: suspend () -> retrofit2.Response<Unit>): Boolean = try {
+        block().isSuccessful
+    } catch (e: Exception) {
+        Log.w(TAG, "Web playback call failed: ${e.javaClass.simpleName}")
+        false
     }
 
     private fun bodyFor(uri: String) =

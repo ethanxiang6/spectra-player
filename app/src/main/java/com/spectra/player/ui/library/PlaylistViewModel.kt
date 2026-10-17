@@ -8,6 +8,7 @@ import com.spectra.player.data.Track
 import com.spectra.player.data.repository.LibraryRepository
 import com.spectra.player.data.userMessage
 import com.spectra.player.player.SpotifyRemoteManager
+import com.spectra.player.player.toNowPlaying
 import com.spectra.player.ui.navigation.Route
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,6 +75,7 @@ class PlaylistViewModel(
     }
 
     fun playAll() = remote.play(playlistUri)
-    fun play(track: Track) = remote.play(track.uri)
+    fun play(track: Track) = remote.play(track.uri, track.toNowPlaying())
+    fun skipNext() = remote.skipNext()
     fun togglePlayPause() = remote.togglePlayPause()
 }

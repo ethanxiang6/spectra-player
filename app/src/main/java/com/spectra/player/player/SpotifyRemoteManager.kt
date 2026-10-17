@@ -20,6 +20,8 @@ import com.spotify.protocol.types.Image
 import com.spotify.protocol.types.ImageUri
 import com.spotify.protocol.types.PlayerState
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -65,6 +67,10 @@ class SpotifyRemoteManager(
     private var connectAgainWithAuthView: Boolean? = null
     private var lastConnectedAt = 0L
 
+    /** True once App Remote has delivered a player state on the current connection. */
+    private var appRemoteStateSeen = false
+    private var startedActivities = 0
+
     // Spotify's own sample connects with an Activity context; the "allow this app" sheet and the
     // service binding are more reliable that way than with the bare application context.
     private var foreground: WeakReference<Activity>? = null
@@ -73,16 +79,42 @@ class SpotifyRemoteManager(
         (context.applicationContext as? Application)?.registerActivityLifecycleCallbacks(
             object : Application.ActivityLifecycleCallbacks {
                 override fun onActivityCreated(a: Activity, b: Bundle?) { foreground = WeakReference(a) }
-                override fun onActivityStarted(a: Activity) { foreground = WeakReference(a) }
+                override fun onActivityStarted(a: Activity) {
+                    foreground = WeakReference(a)
+                    startedActivities++
+                    if (startedActivities == 1) scope.launch { refreshFromWeb() }
+                }
                 override fun onActivityResumed(a: Activity) { foreground = WeakReference(a) }
                 override fun onActivityPaused(a: Activity) = Unit
-                override fun onActivityStopped(a: Activity) = Unit
+                override fun onActivityStopped(a: Activity) {
+                    startedActivities = (startedActivities - 1).coerceAtLeast(0)
+                }
                 override fun onActivitySaveInstanceState(a: Activity, b: Bundle) = Unit
                 override fun onActivityDestroyed(a: Activity) {
                     if (foreground?.get() === a) foreground = null
                 }
             },
         )
+        // Backup "now playing" feed: if App Remote isn't delivering player state (not connected,
+        // or its subscription is silent), ask the Web API what's playing while the app is visible.
+        scope.launch {
+            while (isActive) {
+                delay(WEB_POLL_MS)
+                if (startedActivities > 0 && !appRemoteStateSeen) refreshFromWeb()
+            }
+        }
+    }
+
+    private suspend fun refreshFromWeb() {
+        if (appRemoteStateSeen) return
+        val state = webPlayback?.currentlyPlaying() ?: return
+        if (appRemoteStateSeen) return
+        val previous = _playback.value
+        if (previous.track?.uri != state.track?.uri) {
+            _artwork.value = null
+            lastImageUri = null
+        }
+        _playback.value = state.copy(isShuffling = previous.isShuffling, repeatMode = previous.repeatMode)
     }
 
     private fun collectLog(): String = try {
@@ -252,6 +284,7 @@ class SpotifyRemoteManager(
 
     /** Forgets the current App Remote instance without touching the SDK's shared connector. */
     private fun dropRemote() {
+        appRemoteStateSeen = false
         playerSubscription?.cancel()
         playerSubscription = null
         remote = null
@@ -260,6 +293,7 @@ class SpotifyRemoteManager(
 
     fun disconnect() {
         attempt++
+        appRemoteStateSeen = false
         playerSubscription?.cancel()
         playerSubscription = null
         remote?.let { SpotifyAppRemote.disconnect(it) }
@@ -276,7 +310,8 @@ class SpotifyRemoteManager(
     // ---- Transport -------------------------------------------------------------------------
 
     /** Plays a Spotify URI (track, album or playlist). Connects first if needed. */
-    fun play(uri: String) {
+    fun play(uri: String, hint: NowPlayingTrack? = null) {
+        if (hint != null) showProvisional(hint)
         val r = remote
         if (r == null || !r.isConnected) {
             pendingPlayUri = uri
@@ -303,13 +338,54 @@ class SpotifyRemoteManager(
         }
     }
 
-    fun togglePlayPause() {
-        val api = remote?.playerApi ?: return
-        if (_playback.value.isPlaying) api.pause() else api.resume()
+    /** Shows the tapped song in the bar right away; the real player state replaces it. */
+    private fun showProvisional(track: NowPlayingTrack) {
+        val previous = _playback.value
+        if (previous.track?.uri != track.uri) {
+            _artwork.value = null
+            lastImageUri = null
+        }
+        _playback.value = PlaybackState(
+            track = track,
+            isPlaying = true,
+            positionMs = 0,
+            capturedAtElapsedMs = SystemClock.elapsedRealtime(),
+            isShuffling = previous.isShuffling,
+            repeatMode = previous.repeatMode,
+        )
     }
 
-    fun skipNext() { remote?.playerApi?.skipNext() }
-    fun skipPrevious() { remote?.playerApi?.skipPrevious() }
+    private fun liveRemote(): SpotifyAppRemote? = remote?.takeIf { it.isConnected }
+
+    fun togglePlayPause() {
+        val playing = _playback.value.isPlaying
+        _playback.value = _playback.value.let {
+            it.copy(isPlaying = !playing, positionMs = it.currentPosition(), capturedAtElapsedMs = SystemClock.elapsedRealtime())
+        }
+        val api = liveRemote()?.playerApi
+        if (api != null) {
+            if (playing) api.pause() else api.resume()
+        } else {
+            webCommand { if (playing) it.pause() else it.resume() }
+        }
+    }
+
+    fun skipNext() {
+        liveRemote()?.playerApi?.skipNext() ?: webCommand { it.next() }
+    }
+
+    fun skipPrevious() {
+        liveRemote()?.playerApi?.skipPrevious() ?: webCommand { it.previous() }
+    }
+
+    private fun webCommand(block: suspend (WebPlaybackFallback) -> Boolean) {
+        val web = webPlayback ?: return
+        scope.launch {
+            if (!block(web)) _messages.emit("Spotify didn't respond. Open Spotify and try again.")
+            delay(700)
+            refreshFromWeb()
+        }
+    }
     fun seekTo(positionMs: Long) { remote?.playerApi?.seekTo(positionMs) }
     fun toggleShuffle() { remote?.playerApi?.toggleShuffle() }
     fun toggleRepeat() { remote?.playerApi?.toggleRepeat() }
@@ -334,7 +410,9 @@ class SpotifyRemoteManager(
     }
 
     private fun handlePlayerState(state: PlayerState) {
+        appRemoteStateSeen = true
         val t = state.track
+        val knownUrl = _playback.value.track?.takeIf { it.uri == t?.uri }?.imageUrl
         _playback.value = PlaybackState(
             track = t?.let {
                 NowPlayingTrack(
@@ -344,6 +422,7 @@ class SpotifyRemoteManager(
                     album = it.album?.name.orEmpty(),
                     durationMs = it.duration,
                     imageUri = it.imageUri?.raw,
+                    imageUrl = knownUrl,
                 )
             },
             isPlaying = !state.isPaused,
@@ -376,7 +455,12 @@ class SpotifyRemoteManager(
             return
         }
         scope.launch {
-            val webReason = fallback.play(uri) ?: return@launch // started via the Web API
+            val webReason = fallback.play(uri)
+            if (webReason == null) { // started via the Web API
+                delay(800)
+                refreshFromWeb()
+                return@launch
+            }
             _messages.emit("Couldn't start playback. Spotify app: $sdkReason. Web API: $webReason")
         }
     }
@@ -418,5 +502,6 @@ class SpotifyRemoteManager(
         const val SPOTIFY_PACKAGE = "com.spotify.music"
         const val SPOTIFY_HANDOFF_DELAY_MS = 1_200L
         const val AUTO_RECONNECT_MIN_UPTIME_MS = 5_000L
+        const val WEB_POLL_MS = 4_000L
     }
 }

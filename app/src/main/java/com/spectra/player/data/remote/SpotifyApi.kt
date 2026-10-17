@@ -3,6 +3,7 @@ package com.spectra.player.data.remote
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -48,4 +49,17 @@ interface SpotifyApi {
         @Query("device_id") deviceId: String?,
         @Body body: PlayBodyDto,
     ): Response<Unit>
+
+    /** 204 (empty body) when nothing is playing. */
+    @GET("v1/me/player/currently-playing")
+    suspend fun currentlyPlaying(): Response<CurrentlyPlayingDto>
+
+    @PUT("v1/me/player/pause")
+    suspend fun pausePlayback(): Response<Unit>
+
+    @POST("v1/me/player/next")
+    suspend fun nextTrack(): Response<Unit>
+
+    @POST("v1/me/player/previous")
+    suspend fun previousTrack(): Response<Unit>
 }

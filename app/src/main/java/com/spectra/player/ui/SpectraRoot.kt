@@ -1,5 +1,10 @@
 package com.spectra.player.ui
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -75,7 +80,12 @@ fun SpectraRoot(container: AppContainer, onLogin: () -> Unit) {
                     onOpenNowPlaying = { nav.navigate(Route.NowPlaying) },
                 )
             }
-            composable<Route.NowPlaying> {
+            composable<Route.NowPlaying>(
+                enterTransition = { slideInVertically(tween(380)) { it } + fadeIn(tween(380)) },
+                exitTransition = { fadeOut(tween(200)) },
+                popEnterTransition = { fadeIn(tween(200)) },
+                popExitTransition = { slideOutVertically(tween(320)) { it } + fadeOut(tween(320)) },
+            ) {
                 val vm: NowPlayingViewModel = viewModel(factory = factory)
                 NowPlayingScreen(viewModel = vm, onBack = { nav.navigateUp() })
             }
