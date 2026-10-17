@@ -319,6 +319,27 @@ class SpotifyRemoteManager(
      */
     fun play(uri: String, hint: NowPlayingTrack? = null, context: PlayContext? = null) {
         if (hint != null) showProvisional(hint)
+        val web = webPlayback
+        if (context != null && web != null) {
+            // Start the list *at this exact song* (by URI). App Remote can only start a list by
+            // position, and Spotify's order of e.g. Liked Songs can differ from ours.
+            scope.launch {
+                val reason = web.play(uri, context)
+                if (reason == null) {
+                    keepInsideListViaWeb(web)
+                    delay(800)
+                    refreshFromWeb()
+                } else {
+                    Log.w(TAG, "Web API context play failed: $reason")
+                    playWithAppRemote(uri, context, webTried = true)
+                }
+            }
+            return
+        }
+        playWithAppRemote(uri, context, webTried = false)
+    }
+
+    private fun playWithAppRemote(uri: String, context: PlayContext?, webTried: Boolean) {
         val r = remote
         if (r == null || !r.isConnected) {
             pendingPlay = PendingPlay(uri, context)
@@ -329,11 +350,6 @@ class SpotifyRemoteManager(
             }
             return
         }
-        if (context != null && context.index == null) {
-            // App Remote can only start a context by index; let the Web API find the song by URI.
-            playViaWebApi(uri, context, appRemoteError = null)
-            return
-        }
         val index = context?.index
         val call = if (context != null && index != null) {
             r.playerApi.skipToIndex(context.uri, index)
@@ -341,7 +357,12 @@ class SpotifyRemoteManager(
             r.playerApi.play(uri)
         }
         val isList = context != null || !uri.startsWith("spotify:track:")
-        call.setResultCallback { if (isList) mainHandler.post { stayInContext(r) } }
+        call.setResultCallback {
+            mainHandler.post {
+                if (isList) stayInContext(r)
+                if (context != null) verifyStartedTrack(r, uri)
+            }
+        }
         call.setErrorCallback { error ->
             mainHandler.post {
                 if (error is com.spotify.android.appremote.api.error.SpotifyDisconnectedException ||
@@ -351,11 +372,33 @@ class SpotifyRemoteManager(
                     if (remote === r) dropRemote()
                     pendingPlay = PendingPlay(uri, context)
                     requestConnect(showAuthView = false)
+                } else if (webTried) {
+                    _messages.tryEmit("Couldn't start playback (${describeSdkError(error)}).")
                 } else {
                     playViaWebApi(uri, context, error)
                 }
             }
         }
+    }
+
+    /**
+     * Starting a list by position can land on a different song when Spotify orders the list
+     * differently. If that happened, play the song that was actually tapped.
+     */
+    private fun verifyStartedTrack(r: SpotifyAppRemote, expectedUri: String) {
+        mainHandler.postDelayed({
+            val current = _playback.value.track?.uri
+            if (appRemoteStateSeen && current != null && current != expectedUri && r.isConnected) {
+                Log.w(TAG, "Started $current instead of $expectedUri; playing the tapped song directly")
+                r.playerApi.play(expectedUri)
+            }
+        }, VERIFY_DELAY_MS)
+    }
+
+    private suspend fun keepInsideListViaWeb(web: WebPlaybackFallback) {
+        if (_playback.value.repeatMode != 0) return
+        val r = liveRemote()
+        if (r != null) r.playerApi.setRepeat(REPEAT_ALL) else web.repeatList()
     }
 
     /**
@@ -567,5 +610,6 @@ class SpotifyRemoteManager(
         const val AUTO_RECONNECT_MIN_UPTIME_MS = 5_000L
         const val WEB_POLL_MS = 4_000L
         const val REPEAT_ALL = 2 // com.spotify.protocol.types.Repeat.ALL
+        const val VERIFY_DELAY_MS = 1_500L
     }
 }

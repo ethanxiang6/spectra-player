@@ -77,4 +77,8 @@ interface SpotifyApi {
         @Query("uri") uri: String,
         @Query("device_id") deviceId: String?,
     ): Response<Unit>
+
+    /** state: "track", "context" or "off". */
+    @PUT("v1/me/player/repeat")
+    suspend fun setRepeat(@Query("state") state: String): Response<Unit>
 }

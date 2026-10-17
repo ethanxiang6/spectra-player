@@ -41,7 +41,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -130,8 +129,12 @@ fun NowPlayingScreen(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         micGranted = granted
-        viewModel.setLiveAllowed(granted)
-        viewModel.updateSettings { it.copy(askedForMic = true) }
+        viewModel.updateSettings { it.copy(liveAudio = granted) }
+    }
+
+    // Live audio only when the user switched it on in settings (and the permission is granted).
+    LaunchedEffect(micGranted, settings.liveAudio) {
+        viewModel.setLiveAllowed(micGranted && settings.liveAudio)
     }
 
     var controlsVisible by remember { mutableStateOf(false) }
@@ -142,7 +145,6 @@ fun NowPlayingScreen(
     LifecycleStartEffect(Unit) {
         val granted = context.hasRecordAudioPermission()
         micGranted = granted
-        viewModel.setLiveAllowed(granted)
         viewModel.startVisualizer()
         onStopOrDispose { viewModel.stopVisualizer() }
     }
@@ -246,11 +248,9 @@ fun NowPlayingScreen(
                 playback = playback,
                 style = settings.style,
                 mode = mode,
-                micGranted = micGranted,
                 onClose = onBack,
                 onStyle = { viewModel.updateSettings { it.copy(style = it.style.next()) }; touched() },
                 onSettings = { settingsOpen = true; touched() },
-                onEnableLive = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO); touched() },
                 onShuffle = { viewModel.toggleShuffle(); touched() },
                 onPrevious = { viewModel.skipPrevious(); touched() },
                 onPlayPause = { viewModel.togglePlayPause(); touched() },
@@ -258,18 +258,6 @@ fun NowPlayingScreen(
                 onRepeat = { viewModel.toggleRepeat(); touched() },
                 onSeek = { viewModel.seekTo(it); touched() },
                 onScrub = touched,
-            )
-        }
-
-        // One-time question: should the ring react to the real audio?
-        if (!micGranted && !settings.askedForMic && !controlsVisible) {
-            LiveAudioPrompt(
-                onAllow = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
-                onLater = { viewModel.updateSettings { it.copy(askedForMic = true) } },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(20.dp),
             )
         }
     }
@@ -281,38 +269,15 @@ fun NowPlayingScreen(
             liveGranted = micGranted,
             mode = mode,
             onChange = viewModel::updateSettings,
-            onEnableLive = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+            onLiveChange = { on ->
+                if (on && !micGranted) {
+                    permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                } else {
+                    viewModel.updateSettings { it.copy(liveAudio = on) }
+                }
+            },
             onDismiss = { settingsOpen = false; touched() },
         )
-    }
-}
-
-@Composable
-private fun LiveAudioPrompt(onAllow: () -> Unit, onLater: () -> Unit, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xE6161330))
-            .pointerInput(Unit) { detectTapGestures { } } // don't toggle the controls underneath
-            .padding(18.dp),
-    ) {
-        Text(
-            "Make the visualizer match the music?",
-            style = TextStyle(color = Dusk.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            "Spotify doesn't share its audio with other apps. With microphone permission Spectra reads the " +
-                "phone's audio output, so the ring follows the real beat and melody. Nothing is recorded or stored.",
-            style = TextStyle(color = Dusk.TextDim, fontSize = 13.sp, lineHeight = 18.sp),
-        )
-        Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-            TextButton(onClick = onLater) { Text("Not now", color = Dusk.TextDim) }
-            Spacer(Modifier.width(8.dp))
-            TextButton(onClick = onAllow) { Text("Allow", color = Dusk.Lavender, fontWeight = FontWeight.SemiBold) }
-        }
     }
 }
 
@@ -404,11 +369,9 @@ private fun ControlsOverlay(
     playback: PlaybackState,
     style: VisualizerStyle,
     mode: VisualizerMode,
-    micGranted: Boolean,
     onClose: () -> Unit,
     onStyle: () -> Unit,
     onSettings: () -> Unit,
-    onEnableLive: () -> Unit,
     onShuffle: () -> Unit,
     onPrevious: () -> Unit,
     onPlayPause: () -> Unit,
@@ -500,16 +463,6 @@ private fun ControlsOverlay(
                         if (playback.repeatMode == 1) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                         contentDescription = "Repeat",
                         tint = if (playback.repeatMode != 0) Dusk.Lavender else Dusk.TextDim.copy(alpha = 0.7f),
-                    )
-                }
-            }
-            if (!micGranted) {
-                TextButton(onClick = onEnableLive) {
-                    Icon(Icons.Rounded.Mic, contentDescription = null, tint = Dusk.TextDim, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        "React to the real audio",
-                        style = TextStyle(color = Dusk.TextDim, fontSize = 13.sp),
                     )
                 }
             }

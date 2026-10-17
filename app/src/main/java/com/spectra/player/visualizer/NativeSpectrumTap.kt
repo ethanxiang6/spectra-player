@@ -24,26 +24,14 @@ class NativeSpectrumTap private constructor(
         sampleRateHz = visualizer.samplingRate / 1000, // reported in milliHertz
     )
 
-    /** Slowly decaying loudest-recent level, used as an automatic gain. */
-    private var envelope = 0.35f
-
-    /**
-     * Fills [out] with band levels (auto-gained so quiet and loud songs both fill the ring).
-     * Returns the raw peak level, or -1 if the capture failed.
-     */
+    /** Fills [out] with band levels. Returns the peak level, or -1 if the capture failed. */
     fun read(out: FloatArray): Float {
         val status = try {
             visualizer.getFft(fft)
         } catch (e: Exception) {
             Visualizer.ERROR
         }
-        if (status != Visualizer.SUCCESS) return -1f
-        val peak = mapper.map(fft, out)
-        // Follow peaks instantly, fall back over a few seconds; never boost silence into noise.
-        envelope = maxOf(peak, envelope * ENVELOPE_DECAY, MIN_ENVELOPE)
-        val gain = TARGET_PEAK / envelope
-        for (i in out.indices) out[i] = (out[i] * gain).coerceIn(0f, 1f)
-        return peak
+        return if (status == Visualizer.SUCCESS) mapper.map(fft, out) else -1f
     }
 
     fun release() {
@@ -56,10 +44,6 @@ class NativeSpectrumTap private constructor(
     }
 
     companion object {
-        private const val ENVELOPE_DECAY = 0.996f // per frame (~60 fps): halves in ~3 s
-        private const val MIN_ENVELOPE = 0.18f
-        private const val TARGET_PEAK = 0.95f
-
         /** Null when the device or permission state doesn't allow tapping the output mix. */
         fun create(bands: Int): NativeSpectrumTap? {
             var v: Visualizer? = null

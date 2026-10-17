@@ -27,6 +27,8 @@ data class VisualizerSettings(
     val fontId: String = DEFAULT_FONT,
     /** The one-time "match the real audio" prompt has been answered. */
     val askedForMic: Boolean = false,
+    /** Use the phone's audio output (needs the microphone permission). Off: timing-based animation. */
+    val liveAudio: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_FONT = "default"
@@ -49,6 +51,7 @@ class VisualizerPrefs(context: Context) {
             .putString(KEY_STYLE, next.style.name)
             .putString(KEY_FONT, next.fontId)
             .putBoolean(KEY_ASKED_MIC, next.askedForMic)
+            .putBoolean(KEY_LIVE, next.liveAudio)
             .apply()
     }
 
@@ -61,6 +64,7 @@ class VisualizerPrefs(context: Context) {
             style = enumOr(prefs.getString(KEY_STYLE, null), defaults.style),
             fontId = prefs.getString(KEY_FONT, null) ?: defaults.fontId,
             askedForMic = prefs.getBoolean(KEY_ASKED_MIC, defaults.askedForMic),
+            liveAudio = prefs.getBoolean(KEY_LIVE, defaults.liveAudio),
         )
     }
 
@@ -74,5 +78,6 @@ class VisualizerPrefs(context: Context) {
         const val KEY_STYLE = "style"
         const val KEY_FONT = "font"
         const val KEY_ASKED_MIC = "asked_mic"
+        const val KEY_LIVE = "live_audio"
     }
 }

@@ -21,9 +21,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Mic
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -59,7 +56,7 @@ fun VisualizerSettingsSheet(
     liveGranted: Boolean,
     mode: VisualizerMode,
     onChange: ((VisualizerSettings) -> VisualizerSettings) -> Unit,
-    onEnableLive: () -> Unit,
+    onLiveChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(
@@ -74,7 +71,14 @@ fun VisualizerSettingsSheet(
         ) {
             item(key = "audio") {
                 SectionTitle("Audio")
-                LiveAudioRow(liveGranted, mode, onEnableLive)
+                SwitchRow("React to the real audio", settings.liveAudio && liveGranted, onLiveChange)
+                Text(
+                    if (settings.liveAudio && liveGranted && mode == VisualizerMode.LIVE) "Reacting to the music you hear."
+                    else "Off: the ring follows the song's timing. On: it reads the phone's audio output " +
+                        "(needs the microphone permission; nothing is recorded).",
+                    style = TextStyle(color = Dusk.TextDim, fontSize = 13.sp, lineHeight = 18.sp),
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                )
             }
             item(key = "backdrop") {
                 SectionTitle("Background")
@@ -143,34 +147,6 @@ private fun SectionTitle(text: String) {
         style = TextStyle(color = Dusk.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
         modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 10.dp),
     )
-}
-
-@Composable
-private fun LiveAudioRow(liveGranted: Boolean, mode: VisualizerMode, onEnableLive: () -> Unit) {
-    Column(Modifier.padding(horizontal = 20.dp)) {
-        if (liveGranted) {
-            Text(
-                if (mode == VisualizerMode.LIVE) "The ring is reacting to the music you hear."
-                else "Live audio is allowed. It switches on as soon as the phone is playing sound.",
-                style = TextStyle(color = Dusk.TextDim, fontSize = 14.sp),
-            )
-        } else {
-            Text(
-                "Right now the ring only follows the song's timing. Allow microphone access so Spectra " +
-                    "can read the phone's audio output and react to the real music. Nothing is recorded or stored.",
-                style = TextStyle(color = Dusk.TextDim, fontSize = 14.sp, lineHeight = 20.sp),
-            )
-            Spacer(Modifier.height(10.dp))
-            Button(
-                onClick = onEnableLive,
-                colors = ButtonDefaults.buttonColors(containerColor = Dusk.Lavender, contentColor = Dusk.SkyUpper),
-            ) {
-                Icon(Icons.Rounded.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("React to the real audio")
-            }
-        }
-    }
 }
 
 @Composable
