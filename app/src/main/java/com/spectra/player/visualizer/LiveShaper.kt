@@ -1,16 +1,18 @@
 package com.spectra.player.visualizer
 
 import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.pow
 
 /**
- * Turns a live spectrum into a ring that reacts to the rhythm rather than to the singing.
+ * Shapes a live spectrum the way classic circular visualizers look: a thin ring at rest, with
+ * broad, smooth bulges where the music is *changing*, never a mirror image.
  *
- *  - Kick ("bum"): sudden *increase* in bass energy between frames (spectral flux), not the
- *    bass level itself, so it fires on the hit and not on a sustained bassline.
- *  - Snare / clap ("pt"): the same in the upper-mid range, where snare cracks live.
- *    Both lift the whole ring; the kick more than the snare.
- *  - Detail: every band, scaled against its own recent peak, adds texture so the ring keeps an
- *    organic shape; the vocal range is weighted lowest.
+ *  - Each band shows how far it rises above its own recent average, so steady sound stays near
+ *    the ring and new sound pushes out. A small share of the plain level keeps some texture.
+ *  - Kicks ("bum") make a big bulge in the bass part of the ring; snares/claps ("pt") a smaller one
+ *    in their part; vocals and melody are weighted lowest.
+ *  - A wide circular blur turns neighbouring bars into smooth humps.
  *
  * Input: raw band levels (0..1, bass first). Output written back in place.
  */
@@ -18,40 +20,61 @@ class LiveShaper(private val bands: Int) {
     private val leveler = BandLeveler(bands)
     private val detail = FloatArray(bands)
     private val previous = FloatArray(bands)
+    private val average = FloatArray(bands)
+    private val deviation = FloatArray(bands) { MIN_DEVIATION }
+    private val shaped = FloatArray(bands)
 
     private val kick = OnsetDetector(gain = 2.4f)
     private val snare = OnsetDetector(gain = 2.0f)
     private var kickLevel = 0f
     private var snareLevel = 0f
 
+    private val bassEnd = max(1, bands / 8)            // ~40-150 Hz
+    private val snareStart = (bands * 0.55f).toInt()   // ~1.5 kHz
+    private val snareEnd = (bands * 0.80f).toInt()     // ~5 kHz
+
     fun apply(levels: FloatArray) {
-        val bassEnd = max(1, bands / 8)                 // ~40-150 Hz
-        val snareStart = (bands * 0.55f).toInt()        // ~1.5 kHz
-        val snareEnd = (bands * 0.80f).toInt()          // ~5 kHz
-
-        val kickFlux = flux(levels, 0, bassEnd)
-        val snareFlux = flux(levels, snareStart, snareEnd)
+        kickLevel = max(kickLevel * KICK_DECAY, kick.strength(flux(levels, 0, bassEnd)))
+        snareLevel = max(snareLevel * SNARE_DECAY, snare.strength(flux(levels, snareStart, snareEnd)))
         levels.copyInto(previous)
-
-        kickLevel = max(kickLevel * KICK_DECAY, kick.strength(kickFlux))
-        snareLevel = max(snareLevel * SNARE_DECAY, snare.strength(snareFlux))
 
         levels.copyInto(detail)
         leveler.apply(detail)
 
         for (i in 0 until bands) {
+            val raw = levels[i]
+            // How far this band is above its own recent average (0..1).
+            val above = max(0f, raw - average[i])
+            deviation[i] = max(max(above, deviation[i] * DEVIATION_DECAY), MIN_DEVIATION)
+            val excess = (above / deviation[i]).coerceIn(0f, 1f).pow(1.3f)
+            average[i] += (raw - average[i]) * AVERAGE_RATE
+
             val f = i.toFloat() / bands
             val weight = when {
-                f < 0.2f -> 0.55f   // bass
-                f < 0.55f -> 0.30f  // vocals / melody: least
-                else -> 0.45f       // snare, hats, cymbals
+                f < 0.2f -> 1.0f    // bass
+                f < 0.55f -> 0.55f  // vocals / melody: least
+                else -> 0.75f       // snare, hats, cymbals
             }
-            val lift = KICK_HEIGHT * kickLevel + SNARE_HEIGHT * snareLevel
-            levels[i] = (REST + lift + weight * detail[i]).coerceIn(0f, MAX_LEVEL)
+            val presence = detail[i] / BandLevelerMax
+            var v = weight * (0.75f * excess + 0.25f * presence)
+            if (i < bands / 5) v += KICK_BOOST * kickLevel * (1f - i / (bands / 5f))
+            if (i in snareStart until snareEnd) v += SNARE_BOOST * snareLevel
+            shaped[i] = v
+        }
+
+        // Wide circular blur: neighbouring bars rise together into smooth humps.
+        for (i in 0 until bands) {
+            var sum = 0f
+            var norm = 0f
+            for (k in -BLUR_RADIUS..BLUR_RADIUS) {
+                val w = (BLUR_RADIUS + 1 - kotlin.math.abs(k)).toFloat()
+                sum += shaped[(i + k + bands) % bands] * w
+                norm += w
+            }
+            levels[i] = min(sum / norm * OUTPUT_GAIN, MAX_LEVEL)
         }
     }
 
-    /** Average positive change of bands [from, until) since the previous frame. */
     private fun flux(levels: FloatArray, from: Int, until: Int): Float {
         var sum = 0f
         for (i in from until until) sum += max(0f, levels[i] - previous[i])
@@ -79,11 +102,16 @@ class LiveShaper(private val bands: Int) {
     }
 
     private companion object {
-        const val KICK_DECAY = 0.86f    // per frame: a kick settles in ~0.2 s
-        const val SNARE_DECAY = 0.80f   // snares are shorter
-        const val REST = 0.06f
-        const val KICK_HEIGHT = 0.34f
-        const val SNARE_HEIGHT = 0.20f
-        const val MAX_LEVEL = 0.75f
+        const val BandLevelerMax = 0.78f
+        const val AVERAGE_RATE = 0.03f      // per frame: ~0.5 s memory
+        const val DEVIATION_DECAY = 0.995f
+        const val MIN_DEVIATION = 0.04f
+        const val KICK_DECAY = 0.86f
+        const val SNARE_DECAY = 0.80f
+        const val KICK_BOOST = 0.85f
+        const val SNARE_BOOST = 0.45f
+        const val BLUR_RADIUS = 3
+        const val OUTPUT_GAIN = 1.15f
+        const val MAX_LEVEL = 0.9f
     }
 }

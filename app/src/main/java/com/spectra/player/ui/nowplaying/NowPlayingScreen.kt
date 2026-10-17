@@ -230,6 +230,8 @@ fun NowPlayingScreen(
                 interactive = false,
                 glow = true,
                 mirrored = mode != VisualizerMode.LIVE,
+                // Live: the ring drifts slowly so bulges show up all around it over time.
+                ringRotation = { if (mode == VisualizerMode.LIVE) (seconds * 5f) % 360f else 0f },
             ) {
                 AlbumDisc(
                     artwork = artwork,

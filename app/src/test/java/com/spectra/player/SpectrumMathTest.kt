@@ -97,23 +97,22 @@ class SpectrumMathTest {
     }
 
     @Test
-    fun liveShaperKeepsTheRingRoundAndJumpsOnABassHit() {
+    fun liveShaperRestsNearTheRingAndBulgesInTheBassOnAKick() {
         val bands = 48
         val shaper = LiveShaper(bands)
         val frame = FloatArray(bands)
-        // Steady music, loud bass and quiet treble: ring should be close to a circle.
-        repeat(240) {
+        repeat(300) {
             for (i in 0 until bands) frame[i] = if (i < 6) 0.8f else 0.3f
             shaper.apply(frame)
         }
-        val spread = frame.max() - frame.min()
-        assertTrue("spread=$spread", spread < 0.3f)
-        val resting = frame.average()
+        val resting = frame.max()
+        assertTrue("resting=$resting", resting < 0.35f)
 
-        // A kick: bass jumps.
         for (i in 0 until bands) frame[i] = if (i < 6) 1f else 0.3f
         shaper.apply(frame)
-        assertTrue("resting=$resting after=${frame.average()}", frame.average() > resting + 0.1)
-        assertTrue(frame.all { it <= 0.75f })
+        val bassBulge = frame.slice(0..5).max()
+        val opposite = frame.slice(20..28).max()
+        assertTrue("bass=$bassBulge opposite=$opposite", bassBulge > opposite + 0.2f)
+        assertTrue(frame.all { it <= 0.9f })
     }
 }
