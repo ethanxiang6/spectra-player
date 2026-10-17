@@ -12,6 +12,7 @@ import com.spectra.player.data.repository.LibraryCache
 import com.spectra.player.data.repository.LibraryRepository
 import com.spectra.player.data.repository.NetworkMonitor
 import com.spectra.player.player.SpotifyRemoteManager
+import com.spectra.player.player.WebPlaybackFallback
 import com.spectra.player.visualizer.VisualizerController
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -80,6 +81,6 @@ class AppContainer(context: Context) {
     // --- Data / playback / visualizer ---
     val network = NetworkMonitor(appContext)
     val library = LibraryRepository(spotifyApi, LibraryCache(appContext, json))
-    val remote = SpotifyRemoteManager(appContext)
+    val remote = SpotifyRemoteManager(appContext, WebPlaybackFallback(spotifyApi))
     val visualizer = VisualizerController(library)
 }

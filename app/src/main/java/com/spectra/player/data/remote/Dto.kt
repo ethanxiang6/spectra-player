@@ -88,3 +88,23 @@ data class AudioFeaturesDto(
     val danceability: Float = 0.6f,
     val valence: Float = 0.5f,
 )
+
+// ---- Playback (Web API fallback when App Remote refuses to start a track) ----
+
+@Serializable
+data class DevicesDto(val devices: List<DeviceDto> = emptyList())
+
+@Serializable
+data class DeviceDto(
+    val id: String? = null,
+    val name: String = "",
+    val type: String = "",
+    @SerialName("is_active") val isActive: Boolean = false,
+    @SerialName("is_restricted") val isRestricted: Boolean = false,
+)
+
+@Serializable
+data class PlayBodyDto(
+    val uris: List<String>? = null,
+    @SerialName("context_uri") val contextUri: String? = null,
+)

@@ -20,6 +20,7 @@ import com.spotify.protocol.types.Image
 import com.spotify.protocol.types.ImageUri
 import com.spotify.protocol.types.PlayerState
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,7 +34,13 @@ import kotlinx.coroutines.flow.asStateFlow
  * artwork and transport controls, but NOT raw audio (hence the visualizer fallbacks) and NOT
  * the user's downloaded-track list.
  */
-class SpotifyRemoteManager(private val context: Context) {
+class SpotifyRemoteManager(
+    private val context: Context,
+    private val webPlayback: WebPlaybackFallback? = null,
+) {
+    private val scope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate,
+    )
 
     sealed interface Connection {
         data object Disconnected : Connection
@@ -208,7 +215,7 @@ class SpotifyRemoteManager(private val context: Context) {
             connect()
             return
         }
-        r.playerApi.play(uri).setErrorCallback { reportError("Couldn't start playback", it) }
+        r.playerApi.play(uri).setErrorCallback { error -> playViaWebApi(uri, error) }
     }
 
     fun togglePlayPause() {
@@ -274,12 +281,26 @@ class SpotifyRemoteManager(private val context: Context) {
             ?.setErrorCallback { Log.w(TAG, "Artwork load failed: ${it.javaClass.simpleName}") }
     }
 
-    private fun reportError(prefix: String, error: Throwable) {
-        val premiumNeeded = error.message?.contains("PREMIUM", ignoreCase = true) == true
-        _messages.tryEmit(
-            if (premiumNeeded) "$prefix: Spotify Premium is required for on-demand playback."
-            else "$prefix.",
-        )
+    /** App Remote refused the play request: try Spotify Connect via the Web API, then explain. */
+    private fun playViaWebApi(uri: String, appRemoteError: Throwable) {
+        val sdkReason = describeSdkError(appRemoteError)
+        Log.w(TAG, "App Remote play failed: $sdkReason")
+        val fallback = webPlayback
+        if (fallback == null) {
+            _messages.tryEmit("Couldn't start playback ($sdkReason).")
+            return
+        }
+        scope.launch {
+            val webReason = fallback.play(uri) ?: return@launch // started via the Web API
+            _messages.emit("Couldn't start playback. Spotify app: $sdkReason. Web API: $webReason")
+        }
+    }
+
+    private fun describeSdkError(error: Throwable): String {
+        val reasonUri = (error as? com.spotify.protocol.client.error.RemoteClientException)?.reasonUri
+        return listOfNotNull(error.javaClass.simpleName, reasonUri, error.message?.take(160))
+            .distinct()
+            .joinToString(" / ")
     }
 
     /** Maps SDK exceptions by name so a renamed class never breaks compilation. */

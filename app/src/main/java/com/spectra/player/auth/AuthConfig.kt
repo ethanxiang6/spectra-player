@@ -26,6 +26,9 @@ object AuthConfig {
         // avoids relying on the Spotify app opening its own "allow this app" screen from the
         // background, which recent Android versions block.
         "app-remote-control",
+        // Web API playback, used when App Remote refuses to start a track.
+        "user-read-playback-state",
+        "user-modify-playback-state",
     )
 
     val isConfigured: Boolean get() = clientId.isNotBlank()
