@@ -81,4 +81,7 @@ interface SpotifyApi {
     /** state: "track", "context" or "off". */
     @PUT("v1/me/player/repeat")
     suspend fun setRepeat(@Query("state") state: String): Response<Unit>
+
+    @PUT("v1/me/player/shuffle")
+    suspend fun setShuffle(@Query("state") state: Boolean): Response<Unit>
 }

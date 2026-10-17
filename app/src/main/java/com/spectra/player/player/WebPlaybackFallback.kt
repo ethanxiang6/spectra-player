@@ -81,6 +81,7 @@ class WebPlaybackFallback(private val api: SpotifyApi) {
 
     suspend fun queue(uri: String): Boolean = call { api.addToQueue(uri, null) }
     suspend fun repeatList(): Boolean = call { api.setRepeat("context") }
+    suspend fun shuffle(on: Boolean): Boolean = call { api.setShuffle(on) }
 
     private fun bodyFor(uri: String, context: PlayContext?) =
         if (context != null) {

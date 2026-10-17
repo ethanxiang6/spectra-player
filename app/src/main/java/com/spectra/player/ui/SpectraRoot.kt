@@ -33,6 +33,7 @@ import com.spectra.player.ui.nowplaying.NowPlayingScreen
 import com.spectra.player.ui.nowplaying.NowPlayingViewModel
 import com.spectra.player.ui.nowplaying.SkyBackdrop
 import com.spectra.player.ui.settings.AppSettingsScreen
+import com.spectra.player.ui.theme.VisualizerTypography
 import com.spectra.player.ui.search.SearchScreen
 import com.spectra.player.ui.search.SearchViewModel
 
@@ -84,7 +85,7 @@ fun SpectraRoot(container: AppContainer, onLogin: () -> Unit) {
                 val vm: LibraryViewModel = viewModel(factory = factory)
                 LibraryScreen(
                     viewModel = vm,
-                    onOpenPlaylist = { nav.navigate(Route.PlaylistDetail(it.id, it.name)) },
+                    onOpenPlaylist = { nav.navigate(Route.PlaylistDetail(it.id, it.name, it.imageUrl, it.owner, it.trackCount ?: -1)) },
                     onOpenNowPlaying = { nav.navigate(Route.NowPlaying) },
                     onOpenSearch = { nav.navigate(Route.Search) },
                     onOpenSettings = { nav.navigate(Route.Settings) },
@@ -116,7 +117,9 @@ fun SpectraRoot(container: AppContainer, onLogin: () -> Unit) {
                 popExitTransition = { slideOutVertically(tween(320)) { it } + fadeOut(tween(320)) },
             ) {
                 val vm: NowPlayingViewModel = viewModel(factory = factory)
-                NowPlayingScreen(viewModel = vm, onBack = { nav.navigateUp() })
+                MaterialTheme(colorScheme = MaterialTheme.colorScheme, typography = VisualizerTypography) {
+                    NowPlayingScreen(viewModel = vm, onBack = { nav.navigateUp() })
+                }
             }
         }
     }

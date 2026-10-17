@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
@@ -49,41 +50,37 @@ fun TrackRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(start = 16.dp, end = if (onAddToQueue != null) 4.dp else 16.dp, top = 8.dp, bottom = 8.dp),
+            .padding(start = 20.dp, end = if (onAddToQueue != null) 6.dp else 20.dp, top = 7.dp, bottom = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Start,
     ) {
-        CoverArt(url = track.imageUrl, modifier = Modifier.size(52.dp))
+        CoverArt(url = track.imageUrl, modifier = Modifier.size(48.dp), shape = RoundedCornerShape(6.dp))
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isCurrent) {
+                    Icon(
+                        imageVector = Icons.Rounded.GraphicEq,
+                        contentDescription = if (isPlaying) "Playing" else "Current song",
+                        tint = colors.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(
+                    text = track.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (isCurrent) colors.primary else colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Text(
-                text = track.name,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-                color = if (isCurrent) colors.primary else colors.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = track.subtitle,
+                text = track.artists,
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        if (isCurrent) {
-            Icon(
-                imageVector = Icons.Rounded.GraphicEq,
-                contentDescription = if (isPlaying) "Playing" else "Current track",
-                tint = colors.primary,
-            )
-        } else {
-            Text(
-                text = track.durationMs.formatTime(),
-                style = MaterialTheme.typography.labelMedium,
-                color = colors.onSurfaceVariant,
             )
         }
         if (onAddToQueue != null) {

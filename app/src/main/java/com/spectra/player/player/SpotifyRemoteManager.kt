@@ -464,6 +464,17 @@ class SpotifyRemoteManager(
         }
     }
 
+    /** Turns shuffle on or off (then the next play follows it). */
+    suspend fun setShuffle(on: Boolean) {
+        val r = liveRemote()
+        if (r != null) {
+            r.playerApi.setShuffle(on)
+        } else {
+            webPlayback?.shuffle(on)
+        }
+        _playback.value = _playback.value.copy(isShuffling = on)
+    }
+
     fun skipNext() {
         liveRemote()?.playerApi?.skipNext() ?: webCommand { it.next() }
     }

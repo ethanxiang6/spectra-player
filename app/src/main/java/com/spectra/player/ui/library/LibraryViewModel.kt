@@ -139,6 +139,17 @@ class LibraryViewModel(
     }
 
     fun queue(track: Track) = remote.queue(track.uri, track.name)
+
+    /** Play Liked Songs from the top, or shuffled. */
+    fun playLiked(shuffle: Boolean) {
+        val items = _songs.value.items
+        if (items.isEmpty()) return
+        viewModelScope.launch {
+            remote.setShuffle(shuffle)
+            val index = if (shuffle) items.indices.random() else 0
+            play(index, items[index])
+        }
+    }
     fun skipNext() = remote.skipNext()
     fun togglePlayPause() = remote.togglePlayPause()
 

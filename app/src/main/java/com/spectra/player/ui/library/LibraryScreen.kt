@@ -1,5 +1,21 @@
 package com.spectra.player.ui.library
 
+import androidx.compose.ui.draw.clip
+
+import androidx.compose.foundation.background
+
+import androidx.compose.foundation.layout.height
+
+import androidx.compose.material3.FilledIconButton
+
+import androidx.compose.material.icons.rounded.PlayArrow
+
+import androidx.compose.material.icons.rounded.Shuffle
+
+import androidx.compose.foundation.lazy.items
+
+import androidx.compose.foundation.lazy.LazyRow
+
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.clickable
@@ -80,8 +96,6 @@ import com.spectra.player.ui.components.CoverArt
 import com.spectra.player.ui.components.MiniPlayer
 import com.spectra.player.ui.components.TrackRow
 
-private val Tabs = listOf("Songs", "Playlists", "Offline")
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
@@ -93,35 +107,18 @@ fun LibraryScreen(
 ) {
     val songs by viewModel.songs.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
-    val cached by viewModel.cachedTracks.collectAsStateWithLifecycle()
     val profile by viewModel.profile.collectAsStateWithLifecycle()
-    val premium by viewModel.premium.collectAsStateWithLifecycle()
     val online by viewModel.isOnline.collectAsStateWithLifecycle()
     val connection by viewModel.connection.collectAsStateWithLifecycle()
     val playback by viewModel.playback.collectAsStateWithLifecycle()
     val artwork by viewModel.artwork.collectAsStateWithLifecycle()
 
-    var tab by rememberSaveable { mutableIntStateOf(0) }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
+    val context = LocalContext.current
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = { Text("Library", style = MaterialTheme.typography.titleLarge) },
-                actions = {
-                    IconButton(onClick = onOpenSearch) {
-                        Icon(Icons.Rounded.Search, contentDescription = "Search Spotify")
-                    }
-                    PremiumChip(premium)
-                    ProfileMenu(profile, onSettings = onOpenSettings, onSignOut = viewModel::signOut)
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-            )
-        },
         bottomBar = {
             MiniPlayer(
                 playback = playback,
@@ -133,145 +130,209 @@ fun LibraryScreen(
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            val bannerContext = LocalContext.current
-            ConnectionBanner(
-                connection,
-                onRetry = viewModel::connectRemote,
-                onApprove = { bannerContext.findActivity()?.let(viewModel::connectViaSpotify) },
-            )
-
-            PrimaryTabRow(
-                selectedTabIndex = tab,
-                containerColor = Color.Transparent,
-            ) {
-                Tabs.forEachIndexed { index, label ->
-                    Tab(
-                        selected = tab == index,
-                        onClick = { tab = index },
-                        text = { Text(label, style = MaterialTheme.typography.labelLarge) },
-                    )
-                }
-            }
-
-            PullToRefreshBox(
-                isRefreshing = songs.loading && songs.items.isEmpty(),
-                onRefresh = viewModel::refresh,
+        PullToRefreshBox(
+            isRefreshing = songs.loading && songs.items.isEmpty(),
+            onRefresh = viewModel::refresh,
+            modifier = Modifier.padding(padding).fillMaxSize(),
+        ) {
+            LazyColumn(
+                contentPadding = PaddingValues(bottom = 24.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                when (tab) {
-                    0 -> SongsTab(songs, playback, viewModel::loadMoreSongs, viewModel::play, viewModel::queue)
-                    1 -> PlaylistsTab(playlists, onOpenPlaylist, viewModel::loadMorePlaylists)
-                    else -> OfflineTab(premium, online, cached, playback, viewModel::play, viewModel::queue)
+                item(key = "header") {
+                    Greeting(
+                        profile = profile,
+                        onSettings = onOpenSettings,
+                        onSignOut = viewModel::signOut,
+                    )
+                }
+                item(key = "search") { SearchPill(onClick = onOpenSearch) }
+                item(key = "banner") {
+                    ConnectionBanner(
+                        connection,
+                        onRetry = viewModel::connectRemote,
+                        onApprove = { context.findActivity()?.let(viewModel::connectViaSpotify) },
+                    )
+                }
+                if (!online || songs.fromCache) {
+                    item(key = "offline") { NoteCard("You're offline. Showing the songs saved on this phone.") }
+                }
+
+                item(key = "playlists-heading") { SectionHeading("Playlists") }
+                item(key = "playlists") { PlaylistShelf(playlists, onOpenPlaylist, viewModel::loadMorePlaylists) }
+
+                item(key = "liked-heading") {
+                    LikedHeading(
+                        enabled = songs.items.isNotEmpty(),
+                        onPlay = { viewModel.playLiked(shuffle = false) },
+                        onShuffle = { viewModel.playLiked(shuffle = true) },
+                    )
+                }
+                when {
+                    songs.items.isEmpty() && songs.loading -> item(key = "songs-loading") { LoadingFooter() }
+                    songs.items.isEmpty() && songs.error != null ->
+                        item(key = "songs-error") { ErrorRow(songs.error!!, onRetry = viewModel::loadMoreSongs) }
+                    songs.items.isEmpty() -> item(key = "songs-empty") {
+                        Quiet("Songs you like on Spotify show up here.")
+                    }
+                    else -> trackItems(songs, playback, viewModel::loadMoreSongs, viewModel::play, viewModel::queue)
                 }
             }
         }
     }
 }
 
-// ---- Tabs ----------------------------------------------------------------------------------
+// ---- Header and sections -------------------------------------------------------------------
 
 @Composable
-private fun SongsTab(
-    state: ListState<Track>,
-    playback: PlaybackState,
-    onLoadMore: () -> Unit,
-    onPlay: (Int, Track) -> Unit,
-    onQueue: (Track) -> Unit,
-) {
-    if (state.items.isEmpty()) {
-        when {
-            state.loading -> CenteredBox { CircularProgressIndicator() }
-            state.error != null -> ErrorState(state.error, onRetry = onLoadMore)
-            else -> EmptyState("No saved songs yet", "Songs you like on Spotify will show up here.")
-        }
-        return
+private fun Greeting(profile: UserProfile?, onSettings: () -> Unit, onSignOut: () -> Unit) {
+    val hour = remember { java.time.LocalTime.now().hour }
+    val greeting = when (hour) {
+        in 5..11 -> "Good morning"
+        in 12..17 -> "Good afternoon"
+        else -> "Good evening"
     }
-    LazyColumn(contentPadding = PaddingValues(bottom = 16.dp), modifier = Modifier.fillMaxSize()) {
-        if (state.fromCache) item(key = "cache-note") { NoteCard("You're offline. Showing your last synced songs.") }
-        trackItems(state, playback, onLoadMore, onPlay, onQueue)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 8.dp, top = 20.dp, bottom = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                greeting,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                profile?.displayName?.substringBefore(' ') ?: "Your library",
+                style = MaterialTheme.typography.displaySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        ProfileMenu(profile, onSettings = onSettings, onSignOut = onSignOut)
     }
 }
 
 @Composable
-private fun PlaylistsTab(
+private fun SearchPill(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .padding(horizontal = 20.dp)
+            .fillMaxWidth()
+            .height(52.dp)
+            .clip(RoundedCornerShape(26.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(onClickLabel = "Search", onClick = onClick)
+            .padding(horizontal = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.width(12.dp))
+        Text(
+            "Search songs, artists, albums",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun SectionHeading(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.headlineSmall,
+        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 30.dp, bottom = 12.dp),
+    )
+}
+
+@Composable
+private fun LikedHeading(enabled: Boolean, onPlay: () -> Unit, onShuffle: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 16.dp, top = 30.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Liked songs", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+        IconButton(onClick = onShuffle, enabled = enabled) {
+            Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle liked songs")
+        }
+        Spacer(Modifier.width(4.dp))
+        FilledIconButton(onClick = onPlay, enabled = enabled, modifier = Modifier.size(48.dp)) {
+            Icon(Icons.Rounded.PlayArrow, contentDescription = "Play liked songs", modifier = Modifier.size(28.dp))
+        }
+    }
+}
+
+@Composable
+private fun PlaylistShelf(
     state: ListState<Playlist>,
     onOpen: (Playlist) -> Unit,
     onLoadMore: () -> Unit,
 ) {
-    if (state.items.isEmpty()) {
-        when {
-            state.loading -> CenteredBox { CircularProgressIndicator() }
-            state.error != null -> ErrorState(state.error, onRetry = onLoadMore)
-            else -> EmptyState("No playlists", "Playlists you create or follow will show up here.")
-        }
-        return
-    }
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        items(state.items, key = { it.id }) { playlist ->
-            PlaylistCard(playlist, onClick = { onOpen(playlist) })
-        }
-        when {
-            state.error != null -> item(span = { GridItemSpan(maxLineSpan) }, key = "error") {
-                ErrorRow(state.error, onRetry = onLoadMore)
+    when {
+        state.items.isEmpty() && state.loading -> LoadingFooter()
+        state.items.isEmpty() && state.error != null -> ErrorRow(state.error, onRetry = onLoadMore)
+        state.items.isEmpty() -> Quiet("Playlists you make or follow show up here.")
+        else -> LazyRow(
+            contentPadding = PaddingValues(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            items(state.items, key = { it.id }) { playlist ->
+                PlaylistTile(playlist, onClick = { onOpen(playlist) })
             }
-            state.nextOffset != null -> item(span = { GridItemSpan(maxLineSpan) }, key = "footer") {
-                LaunchedEffect(state.items.size) { onLoadMore() }
-                LoadingFooter()
+            if (state.nextOffset != null) {
+                item(key = "more") {
+                    LaunchedEffect(state.items.size) { onLoadMore() }
+                    Box(Modifier.size(140.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun OfflineTab(
-    premium: PremiumStatus,
-    online: Boolean,
-    cached: List<Track>,
-    playback: PlaybackState,
-    onPlay: (Int, Track) -> Unit,
-    onQueue: (Track) -> Unit,
-) {
-    val context = LocalContext.current
-    LazyColumn(contentPadding = PaddingValues(bottom = 16.dp), modifier = Modifier.fillMaxSize()) {
-        item(key = "status") {
-            OfflineStatusCard(premium, online, onOpenSpotify = { context.openSpotify() })
-        }
-        item(key = "cache-header") {
+private fun PlaylistTile(playlist: Playlist, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .width(140.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick),
+    ) {
+        CoverArt(
+            url = playlist.imageUrl,
+            modifier = Modifier.size(140.dp),
+            shape = RoundedCornerShape(10.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            playlist.name,
+            style = MaterialTheme.typography.titleSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        playlist.trackCount?.let {
             Text(
-                text = "Last synced songs",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+                if (it == 1) "1 song" else "$it songs",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (cached.isEmpty()) {
-            item(key = "cache-empty") {
-                Text(
-                    text = "Open Spectra while online once and your most recent saved songs are kept here " +
-                        "so you can still browse them without a connection.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-        } else {
-            itemsIndexed(cached, key = { index, t -> "${index}_${t.uri}" }) { index, track ->
-                TrackRow(
-                    track = track,
-                    isCurrent = playback.track?.uri == track.uri,
-                    isPlaying = playback.isPlaying,
-                    onClick = { onPlay(index, track) },
-                    onAddToQueue = { onQueue(track) },
-                )
-            }
-        }
     }
+}
+
+@Composable
+private fun Quiet(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+    )
 }
 
 // ---- Shared list plumbing (also used by the playlist detail screen) -------------------------
@@ -306,131 +367,13 @@ internal fun androidx.compose.foundation.lazy.LazyListScope.trackItems(
 // ---- Pieces --------------------------------------------------------------------------------
 
 @Composable
-private fun PlaylistCard(playlist: Playlist, onClick: () -> Unit) {
-    Column(Modifier.clickable(onClick = onClick)) {
-        CoverArt(
-            url = playlist.imageUrl,
-            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-            shape = RoundedCornerShape(12.dp),
-        )
-        Spacer(Modifier.size(8.dp))
-        Text(
-            playlist.name,
-            style = MaterialTheme.typography.titleMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        val meta = listOfNotNull(
-            playlist.trackCount?.let { "$it tracks" },
-            playlist.owner.takeIf { it.isNotBlank() },
-        ).joinToString(" · ")
-        if (meta.isNotEmpty()) {
-            Text(
-                meta,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
-private fun OfflineStatusCard(premium: PremiumStatus, online: Boolean, onOpenSpotify: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
-        colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer),
-        shape = RoundedCornerShape(20.dp),
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Offline listening", style = MaterialTheme.typography.titleMedium)
-            StatusRow(
-                icon = { Icon(Icons.Rounded.Star, null, tint = if (premium == PremiumStatus.PREMIUM) colors.primary else colors.onSurfaceVariant) },
-                label = "Spotify plan",
-                value = when (premium) {
-                    PremiumStatus.PREMIUM -> "Premium"
-                    PremiumStatus.FREE -> "Free"
-                    PremiumStatus.UNKNOWN -> "Checking…"
-                },
-            )
-            StatusRow(
-                icon = {
-                    Icon(
-                        if (online) Icons.Rounded.Wifi else Icons.Rounded.CloudOff,
-                        null,
-                        tint = if (online) colors.primary else colors.tertiary,
-                    )
-                },
-                label = "Network",
-                value = if (online) "Online" else "Offline",
-            )
-            Text(
-                text = when (premium) {
-                    PremiumStatus.PREMIUM ->
-                        "Downloads live inside the Spotify app. Spotify doesn't tell third-party apps which " +
-                            "songs you've downloaded, so they can't be listed here. Playback of downloaded " +
-                            "tracks is handled by Spotify and may still work while you're offline."
-                    PremiumStatus.FREE ->
-                        "Downloads need Spotify Premium. On Free, playback from other apps is limited to " +
-                            "shuffle play."
-                    PremiumStatus.UNKNOWN ->
-                        "Connect to Spotify to check your plan."
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.onSurfaceVariant,
-            )
-            OutlinedButton(onClick = onOpenSpotify) { Text("Open Spotify") }
-        }
-    }
-}
-
-@Composable
-private fun StatusRow(icon: @Composable () -> Unit, label: String, value: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        icon()
-        Spacer(Modifier.width(12.dp))
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.weight(1f))
-        Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-    }
-}
-
-@Composable
-private fun PremiumChip(status: PremiumStatus) {
-    val colors = MaterialTheme.colorScheme
-    val premium = status == PremiumStatus.PREMIUM
-    AssistChip(
-        onClick = {},
-        label = {
-            Text(
-                when (status) {
-                    PremiumStatus.PREMIUM -> "Premium"
-                    PremiumStatus.FREE -> "Free"
-                    PremiumStatus.UNKNOWN -> "…"
-                },
-            )
-        },
-        leadingIcon = {
-            Icon(Icons.Rounded.Star, contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize))
-        },
-        colors = AssistChipDefaults.assistChipColors(
-            labelColor = if (premium) colors.onPrimaryContainer else colors.onSurfaceVariant,
-            leadingIconContentColor = if (premium) colors.primary else colors.onSurfaceVariant,
-            containerColor = if (premium) colors.primaryContainer else Color.Transparent,
-        ),
-    )
-}
-
-@Composable
 private fun ProfileMenu(profile: UserProfile?, onSettings: () -> Unit, onSignOut: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
             CoverArt(
                 url = profile?.imageUrl,
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(40.dp),
                 shape = CircleShape,
             )
         }

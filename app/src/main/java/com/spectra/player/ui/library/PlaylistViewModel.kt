@@ -27,6 +27,9 @@ class PlaylistViewModel(
 
     private val route = handle.toRoute<Route.PlaylistDetail>()
     val title: String = route.name
+    val coverUrl: String? = route.imageUrl
+    val owner: String = route.owner
+    val trackCount: Int? = route.trackCount.takeIf { it >= 0 }
     private val playlistUri = "spotify:playlist:${route.id}"
 
     private val _tracks = MutableStateFlow(ListState<Track>())
@@ -76,6 +79,20 @@ class PlaylistViewModel(
     }
 
     fun playAll() = remote.play(playlistUri)
+
+    /** Play from the first song in order, or shuffled. */
+    fun playFromStart(shuffle: Boolean) {
+        viewModelScope.launch {
+            remote.setShuffle(shuffle)
+            val items = _tracks.value.items
+            if (items.isEmpty()) {
+                remote.play(playlistUri)
+            } else {
+                val index = if (shuffle) items.indices.random() else 0
+                play(index, items[index])
+            }
+        }
+    }
 
     /** Plays inside this playlist, starting at [index], so the next songs come from the same playlist. */
     fun play(index: Int, track: Track) =
