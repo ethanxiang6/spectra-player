@@ -1,5 +1,29 @@
 package com.spectra.player.ui.settings
 
+import com.spectra.player.ui.components.CoverArt
+
+import com.spectra.player.data.UserProfile
+
+import com.spectra.player.data.PremiumStatus
+
+import androidx.compose.ui.Alignment
+
+import androidx.compose.material3.TextButton
+
+import androidx.compose.foundation.shape.CircleShape
+
+import androidx.compose.foundation.layout.height
+
+import androidx.compose.foundation.layout.width
+
+import androidx.compose.foundation.layout.size
+
+import androidx.compose.foundation.layout.fillMaxWidth
+
+import androidx.compose.foundation.layout.Spacer
+
+import androidx.compose.foundation.layout.Row
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -32,13 +56,19 @@ import com.spectra.player.ui.theme.AppSettings
 /** Settings for the app (library, playlists, search). The visualizer keeps its own settings. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppSettingsScreen(prefs: AppPrefs, onBack: () -> Unit) {
+fun AppSettingsScreen(
+    prefs: AppPrefs,
+    profile: UserProfile?,
+    premium: PremiumStatus,
+    onSignOut: () -> Unit,
+    onBack: () -> Unit,
+) {
     val settings by prefs.settings.collectAsStateWithLifecycle()
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("App settings", style = MaterialTheme.typography.titleLarge) },
+                title = {},
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
@@ -55,10 +85,11 @@ fun AppSettingsScreen(prefs: AppPrefs, onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState()),
         ) {
             Text(
-                "Theme",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 10.dp),
+                "Settings",
+                style = MaterialTheme.typography.headlineLarge,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp),
             )
+            Heading("Theme")
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -72,18 +103,53 @@ fun AppSettingsScreen(prefs: AppPrefs, onBack: () -> Unit) {
                 }
             }
             Text(
-                "Colours the library, playlists and search, with the sky behind them.",
+                "Sets the sky and colours for the library, playlists and search.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
             )
             SwitchRow("Stars in the background", settings.stars) { on -> prefs.update { it.copy(stars = on) } }
+            Heading("Account")
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CoverArt(url = profile?.imageUrl, modifier = Modifier.size(48.dp), shape = CircleShape)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(profile?.displayName ?: "Spotify account", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        when (premium) {
+                            PremiumStatus.PREMIUM -> "Spotify Premium"
+                            PremiumStatus.FREE -> "Spotify Free: songs play shuffled only"
+                            PremiumStatus.UNKNOWN -> "Checking your plan"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            TextButton(onClick = onSignOut, modifier = Modifier.padding(horizontal = 8.dp)) {
+                Text("Sign out", color = MaterialTheme.colorScheme.error)
+            }
+
+            Heading("Visualizer")
             Text(
-                "The visualizer has its own settings: open it, tap the screen, then the gear.",
+                "The visualizer has its own settings. Open it, tap the screen, then the gear.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                modifier = Modifier.padding(horizontal = 20.dp),
             )
+            Spacer(Modifier.height(32.dp))
         }
     }
+}
+
+@Composable
+private fun Heading(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.headlineSmall,
+        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 28.dp, bottom = 12.dp),
+    )
 }

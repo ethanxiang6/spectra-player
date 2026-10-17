@@ -1,5 +1,9 @@
 package com.spectra.player.ui.login
 
+import androidx.compose.ui.unit.sp
+
+import androidx.compose.foundation.shape.RoundedCornerShape
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -50,33 +54,33 @@ fun LoginScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFF171230), colors.background)))
             .systemBarsPadding()
-            .padding(32.dp),
+            .padding(horizontal = 28.dp, vertical = 24.dp),
     ) {
         Column(
             modifier = Modifier.align(Alignment.Center),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            horizontalAlignment = Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            DecorativeRing(Modifier.size(180.dp))
-            Spacer(Modifier.height(8.dp))
-            Text("Spectra", style = MaterialTheme.typography.headlineMedium)
             Text(
-                "Your Spotify library, in motion.",
+                "Spectra",
+                style = MaterialTheme.typography.displaySmall.copy(fontSize = 72.sp, lineHeight = 72.sp),
+            )
+            Text(
+                "Your Spotify library under an evening sky, with a visualizer that moves to the music.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = colors.onSurfaceVariant,
-                textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(28.dp))
 
             Button(
                 onClick = onLogin,
+                shape = RoundedCornerShape(28.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp),
+                    .height(56.dp),
             ) {
-                Text("Continue with Spotify", style = MaterialTheme.typography.labelLarge)
+                Text("Continue with Spotify", style = MaterialTheme.typography.titleMedium)
             }
 
             when (state) {
@@ -86,7 +90,7 @@ fun LoginScreen(
                 ) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                     Text(
-                        "Waiting for Spotify… tap the button to start over.",
+                        "Finish signing in on Spotify's page, or tap the button to start again.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.onSurfaceVariant,
                     )
@@ -101,10 +105,9 @@ fun LoginScreen(
             }
 
             Text(
-                "You'll sign in on Spotify's own page. Spectra never sees your password.",
+                "You sign in on Spotify's own page. Spectra never sees your password.",
                 style = MaterialTheme.typography.labelMedium,
                 color = colors.onSurfaceVariant.copy(alpha = 0.8f),
-                textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 8.dp),
             )
 
@@ -124,7 +127,7 @@ private fun SetupDetails() {
     val context = LocalContext.current
     var open by remember { mutableStateOf(false) }
     TextButton(onClick = { open = !open }) {
-        Text(if (open) "Hide setup details" else "Sign-in problems? Show setup details")
+        Text(if (open) "Hide details" else "Trouble signing in?")
     }
     if (open) {
         val sha1 = remember { SigningInfo.sha1(context) ?: "unavailable" }

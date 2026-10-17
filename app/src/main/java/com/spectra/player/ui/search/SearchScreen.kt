@@ -1,5 +1,13 @@
 package com.spectra.player.ui.search
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+
+import androidx.compose.foundation.layout.statusBarsPadding
+
+import androidx.compose.foundation.layout.Row
+
+import androidx.compose.foundation.layout.Column
+
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -64,43 +72,42 @@ fun SearchScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                navigationIcon = {
+            Column(Modifier.statusBarsPadding().padding(bottom = 8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, top = 4.dp)) {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
                     }
-                },
-                title = {
-                    TextField(
-                        value = query,
-                        onValueChange = viewModel::onQueryChange,
-                        placeholder = { Text("Songs, artists, albums") },
-                        leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-                        trailingIcon = {
-                            if (query.isNotEmpty()) {
-                                IconButton(onClick = { viewModel.onQueryChange("") }) {
-                                    Icon(Icons.Rounded.Close, contentDescription = "Clear")
-                                }
+                    Text("Search", style = MaterialTheme.typography.headlineMedium)
+                }
+                TextField(
+                    value = query,
+                    onValueChange = viewModel::onQueryChange,
+                    placeholder = { Text("Songs, artists, albums") },
+                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (query.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.onQueryChange("") }) {
+                                Icon(Icons.Rounded.Close, contentDescription = "Clear")
                             }
-                        },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                        ),
-                        shape = MaterialTheme.shapes.extraLarge,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(end = 12.dp)
-                            .focusRequester(focus),
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-            )
+                        }
+                    },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                    ),
+                    shape = RoundedCornerShape(26.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                        .focusRequester(focus),
+                )
+            }
         },
         bottomBar = {
             MiniPlayer(
@@ -119,12 +126,12 @@ fun SearchScreen(
         ) {
             when {
                 query.isBlank() -> item(key = "hint") {
-                    Hint("Search all of Spotify. Songs you play from here continue with the rest of their album.")
+                    Hint("Find anything on Spotify. A song you play from here carries on with the rest of its album.")
                 }
                 results.items.isEmpty() && results.loading -> item(key = "loading") { LoadingFooter() }
                 results.items.isEmpty() && results.error != null ->
                     item(key = "error") { ErrorRow(results.error!!, onRetry = { viewModel.onQueryChange(query) }) }
-                results.items.isEmpty() -> item(key = "empty") { Hint("No songs found for \"$query\".") }
+                results.items.isEmpty() -> item(key = "empty") { Hint("Nothing matches \"$query\". Try fewer words or check the spelling.") }
                 else -> {
                     items(results.items.size, key = { i -> "${i}_${results.items[i].uri}" }) { i ->
                         val track = results.items[i]

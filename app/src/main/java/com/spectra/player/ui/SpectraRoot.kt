@@ -92,7 +92,17 @@ fun SpectraRoot(container: AppContainer, onLogin: () -> Unit) {
                 )
             }
             composable<Route.Settings> {
-                AppSettingsScreen(prefs = container.appPrefs, onBack = { nav.navigateUp() })
+                val libraryEntry = remember(it) { nav.getBackStackEntry<Route.Library>() }
+                val libraryVm: LibraryViewModel = viewModel(viewModelStoreOwner = libraryEntry, factory = factory)
+                val profile by libraryVm.profile.collectAsStateWithLifecycle()
+                val premium by libraryVm.premium.collectAsStateWithLifecycle()
+                AppSettingsScreen(
+                    prefs = container.appPrefs,
+                    profile = profile,
+                    premium = premium,
+                    onSignOut = libraryVm::signOut,
+                    onBack = { nav.navigateUp() },
+                )
             }
             composable<Route.Search> {
                 val vm: SearchViewModel = viewModel(factory = factory)
