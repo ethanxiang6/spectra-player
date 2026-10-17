@@ -40,6 +40,10 @@ class VisualizerController(
     private val library: LibraryRepository,
     val bandCount: Int = 48,
 ) {
+    /** How long to hold live frames back so beats line up with what you hear (see [LiveDelay]). */
+    @Volatile
+    var liveDelayMs: Long = 0L
+
     private val _spectrum = MutableStateFlow(FloatArray(bandCount))
     val spectrum: StateFlow<FloatArray> = _spectrum.asStateFlow()
 
@@ -78,6 +82,8 @@ class VisualizerController(
         }
 
         val live = FloatArray(bandCount)
+        val liveDelayed = FloatArray(bandCount)
+        val delayLine = LiveDelay(bandCount)
         val simulated = FloatArray(bandCount)
         val simulator = SimulatedSpectrum(bandCount)
         val smoother = SpectrumSmoother(bandCount)
@@ -114,7 +120,8 @@ class VisualizerController(
 
                 val target: FloatArray
                 if (liveUsable) {
-                    target = live
+                    delayLine.push(now, live, liveDelayMs, liveDelayed)
+                    target = liveDelayed
                     _mode.value = VisualizerMode.LIVE
                 } else {
                     val p = profile.get()

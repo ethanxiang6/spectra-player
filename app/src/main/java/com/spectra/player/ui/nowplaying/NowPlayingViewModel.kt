@@ -34,6 +34,10 @@ class NowPlayingViewModel(
     fun startVisualizer() = visualizer.start(viewModelScope, remote.playback, liveAllowed)
     fun stopVisualizer() = visualizer.stop()
 
+    fun setLiveDelay(ms: Long) {
+        visualizer.liveDelayMs = ms.coerceIn(0L, 800L)
+    }
+
     fun togglePlayPause() = remote.togglePlayPause()
     fun skipNext() = remote.skipNext()
     fun skipPrevious() = remote.skipPrevious()

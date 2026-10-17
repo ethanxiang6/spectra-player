@@ -79,6 +79,9 @@ fun VisualizerSettingsSheet(
                     style = TextStyle(color = Dusk.TextDim, fontSize = 13.sp, lineHeight = 18.sp),
                     modifier = Modifier.padding(horizontal = 20.dp),
                 )
+                if (settings.liveAudio && liveGranted) {
+                    SyncSlider(settings.syncOffsetMs) { ms -> onChange { it.copy(syncOffsetMs = ms) } }
+                }
             }
             item(key = "backdrop") {
                 SectionTitle("Background")
@@ -137,6 +140,34 @@ fun VisualizerSettingsSheet(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SyncSlider(offsetMs: Int, onChange: (Int) -> Unit) {
+    Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+        Text(
+            "Beat sync: " + when {
+                offsetMs == 0 -> "automatic"
+                offsetMs > 0 -> "+$offsetMs ms (later)"
+                else -> "$offsetMs ms (earlier)"
+            },
+            style = TextStyle(color = Dusk.Text, fontSize = 14.sp),
+        )
+        androidx.compose.material3.Slider(
+            value = offsetMs.toFloat(),
+            onValueChange = { onChange(((it / 20f).toInt() * 20)) },
+            valueRange = -200f..400f,
+            colors = androidx.compose.material3.SliderDefaults.colors(
+                thumbColor = Dusk.Text,
+                activeTrackColor = Dusk.Lavender,
+                inactiveTrackColor = Color.White.copy(alpha = 0.18f),
+            ),
+        )
+        Text(
+            "If the ring jumps before you hear the beat, slide right. If it jumps after, slide left.",
+            style = TextStyle(color = Dusk.TextDim, fontSize = 12.sp),
+        )
     }
 }
 

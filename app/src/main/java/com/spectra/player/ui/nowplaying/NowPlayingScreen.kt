@@ -133,6 +133,14 @@ fun NowPlayingScreen(
     }
 
     // Live audio only when the user switched it on in settings (and the permission is granted).
+    // Beats are captured before they reach your ears: hold them back by the output delay.
+    LaunchedEffect(settings.syncOffsetMs) {
+        while (isActive) {
+            viewModel.setLiveDelay(context.outputLatencyMs() + settings.syncOffsetMs)
+            delay(3_000) // re-check: headphones may connect or disconnect
+        }
+    }
+
     LaunchedEffect(micGranted, settings.liveAudio) {
         viewModel.setLiveAllowed(micGranted && settings.liveAudio)
         // Live audio is on by default: ask for the permission once, the first time it's needed.
@@ -221,6 +229,7 @@ fun NowPlayingScreen(
                 colors = settings.backdrop.look().ring,
                 interactive = false,
                 glow = true,
+                mirrored = mode != VisualizerMode.LIVE,
             ) {
                 AlbumDisc(
                     artwork = artwork,
@@ -543,6 +552,19 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null
+}
+
+/** Rough audio output delay: Bluetooth adds ~200 ms, wired and speaker output very little. */
+private fun Context.outputLatencyMs(): Long {
+    val am = getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager ?: return 40L
+    val outputs = am.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
+    val bluetooth = outputs.any {
+        it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+            (android.os.Build.VERSION.SDK_INT >= 31 &&
+                (it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                    it.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER))
+    }
+    return if (bluetooth) 220L else 40L
 }
 
 private fun Context.hasRecordAudioPermission(): Boolean =

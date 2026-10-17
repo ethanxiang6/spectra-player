@@ -80,6 +80,8 @@ fun RadialSpectrumVisualizer(
     interactive: Boolean = true,
     /** Draws a soft, wide underlay so the ring glows against a dark background. */
     glow: Boolean = false,
+    /** True: left/right mirror image. False: frequencies sweep once around the ring (asymmetric). */
+    mirrored: Boolean = true,
     centerContent: @Composable BoxScope.() -> Unit = {},
 ) {
     var touch by remember { mutableStateOf<Offset?>(null) }
@@ -133,9 +135,9 @@ fun RadialSpectrumVisualizer(
             )
 
             when (style) {
-                VisualizerStyle.BARS -> drawBars(bins, center, inner, maxLen, brush, touchAngle, glow)
-                VisualizerStyle.WAVE -> drawWave(bins, center, inner, maxLen, brush, touchAngle, glow)
-                VisualizerStyle.DOTS -> drawDots(bins, center, inner, maxLen, brush, touchAngle, glow)
+                VisualizerStyle.BARS -> drawBars(bins, center, inner, maxLen, brush, touchAngle, glow, mirrored)
+                VisualizerStyle.WAVE -> drawWave(bins, center, inner, maxLen, brush, touchAngle, glow, mirrored)
+                VisualizerStyle.DOTS -> drawDots(bins, center, inner, maxLen, brush, touchAngle, glow, mirrored)
             }
         }
         centerContent()
@@ -146,6 +148,10 @@ fun RadialSpectrumVisualizer(
 private fun slotAngle(slot: Int, slots: Int): Float = slot.toFloat() / slots * TAU - HALF_PI
 
 private fun mirroredIndex(slot: Int, bands: Int): Int = if (slot < bands) slot else 2 * bands - 1 - slot
+
+/** Band shown in [slot] of a ring with 2 x [bands] slots. */
+private fun bandFor(slot: Int, bands: Int, mirrored: Boolean): Int =
+    if (mirrored) mirroredIndex(slot, bands) else (slot / 2).coerceAtMost(bands - 1)
 
 /** Extra height near the finger: gaussian falloff over ~14 degrees. */
 private fun touchBoost(angle: Float, touchAngle: Float?): Float {
@@ -163,12 +169,13 @@ private fun DrawScope.drawBars(
     brush: Brush,
     touchAngle: Float?,
     glow: Boolean,
+    mirrored: Boolean,
 ) {
     val slots = bins.size * 2
     val barWidth = (TAU * inner / slots) * 0.55f
     for (slot in 0 until slots) {
         val angle = slotAngle(slot, slots)
-        val level = min(1f, bins[mirroredIndex(slot, bins.size)] + touchBoost(angle, touchAngle))
+        val level = min(1f, bins[bandFor(slot, bins.size, mirrored)] + touchBoost(angle, touchAngle))
         val length = max(barWidth, level * maxLen)
         val dir = Offset(cos(angle), sin(angle))
         if (glow) {
@@ -199,11 +206,12 @@ private fun DrawScope.drawWave(
     brush: Brush,
     touchAngle: Float?,
     glow: Boolean,
+    mirrored: Boolean,
 ) {
     val n = bins.size * 2
     val points = Array(n) { slot ->
         val angle = slotAngle(slot, n)
-        val level = min(1f, bins[mirroredIndex(slot, bins.size)] + touchBoost(angle, touchAngle))
+        val level = min(1f, bins[bandFor(slot, bins.size, mirrored)] + touchBoost(angle, touchAngle))
         val r = inner + level * maxLen
         Offset(center.x + cos(angle) * r, center.y + sin(angle) * r)
     }
@@ -233,11 +241,12 @@ private fun DrawScope.drawDots(
     brush: Brush,
     touchAngle: Float?,
     glow: Boolean,
+    mirrored: Boolean,
 ) {
     val slots = bins.size * 2
     for (slot in 0 until slots) {
         val angle = slotAngle(slot, slots)
-        val level = min(1f, bins[mirroredIndex(slot, bins.size)] + touchBoost(angle, touchAngle))
+        val level = min(1f, bins[bandFor(slot, bins.size, mirrored)] + touchBoost(angle, touchAngle))
         val dir = Offset(cos(angle), sin(angle))
         val radius = 1.6.dp.toPx() + level * 2.8.dp.toPx()
         // Faint resting ring + the reactive dot that lifts off it.

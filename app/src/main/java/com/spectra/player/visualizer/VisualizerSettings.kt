@@ -29,6 +29,8 @@ data class VisualizerSettings(
     val askedForMic: Boolean = false,
     /** Use the phone's audio output (needs the microphone permission). Off: timing-based animation. */
     val liveAudio: Boolean = true,
+    /** Extra beat-sync shift in ms on top of the automatic one (+ later, - earlier). */
+    val syncOffsetMs: Int = 0,
 ) {
     companion object {
         const val DEFAULT_FONT = "default"
@@ -52,6 +54,7 @@ class VisualizerPrefs(context: Context) {
             .putString(KEY_FONT, next.fontId)
             .putBoolean(KEY_ASKED_MIC, next.askedForMic)
             .putBoolean(KEY_LIVE, next.liveAudio)
+            .putInt(KEY_SYNC, next.syncOffsetMs)
             .apply()
     }
 
@@ -65,6 +68,7 @@ class VisualizerPrefs(context: Context) {
             fontId = prefs.getString(KEY_FONT, null) ?: defaults.fontId,
             askedForMic = prefs.getBoolean(KEY_ASKED_MIC, defaults.askedForMic),
             liveAudio = prefs.getBoolean(KEY_LIVE, defaults.liveAudio),
+            syncOffsetMs = prefs.getInt(KEY_SYNC, defaults.syncOffsetMs),
         )
     }
 
@@ -79,5 +83,6 @@ class VisualizerPrefs(context: Context) {
         const val KEY_FONT = "font"
         const val KEY_ASKED_MIC = "asked_mic"
         const val KEY_LIVE = "live_audio_v2"
+        const val KEY_SYNC = "sync_offset_ms"
     }
 }

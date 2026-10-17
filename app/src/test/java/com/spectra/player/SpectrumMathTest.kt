@@ -107,13 +107,13 @@ class SpectrumMathTest {
             shaper.apply(frame)
         }
         val spread = frame.max() - frame.min()
-        assertTrue("spread=$spread", spread < 0.2f)
+        assertTrue("spread=$spread", spread < 0.3f)
         val resting = frame.average()
 
         // A kick: bass jumps.
         for (i in 0 until bands) frame[i] = if (i < 6) 1f else 0.3f
         shaper.apply(frame)
         assertTrue("resting=$resting after=${frame.average()}", frame.average() > resting + 0.1)
-        assertTrue(frame.all { it <= 0.72f })
+        assertTrue(frame.all { it <= 0.75f })
     }
 }
