@@ -14,6 +14,10 @@ data class Track(
     val imageUrl: String?,
     val durationMs: Long,
     val isLocal: Boolean = false,
+    /** Album context and position, used to keep search results playing within their album. */
+    val albumUri: String? = null,
+    val trackNumber: Int? = null,
+    val discNumber: Int? = null,
 ) {
     val subtitle: String get() = listOf(artists, album).filter { it.isNotBlank() }.joinToString(" · ")
 }

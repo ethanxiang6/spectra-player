@@ -20,6 +20,9 @@ fun TrackDto.toDomain() = Track(
     imageUrl = album?.images.bestImage(),
     durationMs = durationMs,
     isLocal = isLocal,
+    albumUri = album?.uri,
+    trackNumber = trackNumber,
+    discNumber = discNumber,
 )
 
 fun PlaylistDto.toDomain() = Playlist(

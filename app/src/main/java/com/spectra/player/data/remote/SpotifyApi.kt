@@ -62,4 +62,19 @@ interface SpotifyApi {
 
     @POST("v1/me/player/previous")
     suspend fun previousTrack(): Response<Unit>
+
+    /** Track search across the whole Spotify catalogue. */
+    @GET("v1/search")
+    suspend fun search(
+        @Query("q") query: String,
+        @Query("type") type: String,
+        @Query("limit") limit: Int,
+        @Query("offset") offset: Int,
+    ): SearchDto
+
+    @POST("v1/me/player/queue")
+    suspend fun addToQueue(
+        @Query("uri") uri: String,
+        @Query("device_id") deviceId: String?,
+    ): Response<Unit>
 }

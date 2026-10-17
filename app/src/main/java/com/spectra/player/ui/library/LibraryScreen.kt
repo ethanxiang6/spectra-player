@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Star
@@ -86,6 +87,7 @@ fun LibraryScreen(
     viewModel: LibraryViewModel,
     onOpenPlaylist: (Playlist) -> Unit,
     onOpenNowPlaying: () -> Unit,
+    onOpenSearch: () -> Unit,
 ) {
     val songs by viewModel.songs.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
@@ -107,6 +109,9 @@ fun LibraryScreen(
             TopAppBar(
                 title = { Text("Library", style = MaterialTheme.typography.titleLarge) },
                 actions = {
+                    IconButton(onClick = onOpenSearch) {
+                        Icon(Icons.Rounded.Search, contentDescription = "Search Spotify")
+                    }
                     PremiumChip(premium)
                     ProfileMenu(profile, onSignOut = viewModel::signOut)
                 },
@@ -153,9 +158,9 @@ fun LibraryScreen(
                 modifier = Modifier.fillMaxSize(),
             ) {
                 when (tab) {
-                    0 -> SongsTab(songs, playback, viewModel::loadMoreSongs, viewModel::play)
+                    0 -> SongsTab(songs, playback, viewModel::loadMoreSongs, viewModel::play, viewModel::queue)
                     1 -> PlaylistsTab(playlists, onOpenPlaylist, viewModel::loadMorePlaylists)
-                    else -> OfflineTab(premium, online, cached, playback, viewModel::play)
+                    else -> OfflineTab(premium, online, cached, playback, viewModel::play, viewModel::queue)
                 }
             }
         }
@@ -169,7 +174,8 @@ private fun SongsTab(
     state: ListState<Track>,
     playback: PlaybackState,
     onLoadMore: () -> Unit,
-    onPlay: (Track) -> Unit,
+    onPlay: (Int, Track) -> Unit,
+    onQueue: (Track) -> Unit,
 ) {
     if (state.items.isEmpty()) {
         when {
@@ -181,7 +187,7 @@ private fun SongsTab(
     }
     LazyColumn(contentPadding = PaddingValues(bottom = 16.dp), modifier = Modifier.fillMaxSize()) {
         if (state.fromCache) item(key = "cache-note") { NoteCard("You're offline. Showing your last synced songs.") }
-        trackItems(state, playback, onLoadMore, onPlay)
+        trackItems(state, playback, onLoadMore, onPlay, onQueue)
     }
 }
 
@@ -227,7 +233,8 @@ private fun OfflineTab(
     online: Boolean,
     cached: List<Track>,
     playback: PlaybackState,
-    onPlay: (Track) -> Unit,
+    onPlay: (Int, Track) -> Unit,
+    onQueue: (Track) -> Unit,
 ) {
     val context = LocalContext.current
     LazyColumn(contentPadding = PaddingValues(bottom = 16.dp), modifier = Modifier.fillMaxSize()) {
@@ -252,12 +259,13 @@ private fun OfflineTab(
                 )
             }
         } else {
-            itemsIndexed(cached, key = { index, t -> "${index}_${t.uri}" }) { _, track ->
+            itemsIndexed(cached, key = { index, t -> "${index}_${t.uri}" }) { index, track ->
                 TrackRow(
                     track = track,
                     isCurrent = playback.track?.uri == track.uri,
                     isPlaying = playback.isPlaying,
-                    onClick = { onPlay(track) },
+                    onClick = { onPlay(index, track) },
+                    onAddToQueue = { onQueue(track) },
                 )
             }
         }
@@ -271,14 +279,16 @@ internal fun androidx.compose.foundation.lazy.LazyListScope.trackItems(
     state: ListState<Track>,
     playback: PlaybackState,
     onLoadMore: () -> Unit,
-    onPlay: (Track) -> Unit,
+    onPlay: (Int, Track) -> Unit,
+    onQueue: (Track) -> Unit,
 ) {
-    itemsIndexed(state.items, key = { index, t -> "${index}_${t.uri}" }) { _, track ->
+    itemsIndexed(state.items, key = { index, t -> "${index}_${t.uri}" }) { index, track ->
         TrackRow(
             track = track,
             isCurrent = playback.track?.uri == track.uri,
             isPlaying = playback.isPlaying,
-            onClick = { onPlay(track) },
+            onClick = { onPlay(index, track) },
+            onAddToQueue = { onQueue(track) },
         )
     }
     when {

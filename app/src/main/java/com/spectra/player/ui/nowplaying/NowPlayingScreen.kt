@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
@@ -45,6 +46,7 @@ import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
@@ -63,7 +65,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -80,6 +81,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -120,6 +122,7 @@ fun NowPlayingScreen(
     val artwork by viewModel.artwork.collectAsStateWithLifecycle()
     val mode by viewModel.mode.collectAsStateWithLifecycle()
     val spectrum = viewModel.spectrum.collectAsStateWithLifecycle() // read only while drawing
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     var micGranted by remember { mutableStateOf(context.hasRecordAudioPermission()) }
@@ -128,10 +131,11 @@ fun NowPlayingScreen(
     ) { granted ->
         micGranted = granted
         viewModel.setLiveAllowed(granted)
+        viewModel.updateSettings { it.copy(askedForMic = true) }
     }
 
-    var style by rememberSaveable { mutableStateOf(VisualizerStyle.BARS) }
     var controlsVisible by remember { mutableStateOf(false) }
+    var settingsOpen by remember { mutableStateOf(false) }
     var lastInteraction by remember { mutableLongStateOf(0L) }
     val touched = { lastInteraction = SystemClock.uptimeMillis() }
 
@@ -154,8 +158,9 @@ fun NowPlayingScreen(
         }
     }
     var artAngle by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(playback.isPlaying) {
-        if (playback.isPlaying) {
+    LaunchedEffect(playback.isPlaying, settings.spinArt) {
+        if (!settings.spinArt) artAngle = 0f
+        if (playback.isPlaying && settings.spinArt) {
             var last = withFrameNanos { it }
             while (isActive) {
                 val now = withFrameNanos { it }
@@ -165,8 +170,8 @@ fun NowPlayingScreen(
         }
     }
 
-    LaunchedEffect(controlsVisible, lastInteraction) {
-        if (controlsVisible) {
+    LaunchedEffect(controlsVisible, lastInteraction, settingsOpen) {
+        if (controlsVisible && !settingsOpen) {
             delay(CONTROLS_HIDE_MS)
             controlsVisible = false
         }
@@ -183,7 +188,11 @@ fun NowPlayingScreen(
                 }
             },
     ) {
-        EveningSky(
+        SkyBackdrop(
+            backdrop = settings.backdrop,
+            showStars = settings.stars,
+            artwork = artwork,
+            imageUrl = playback.track?.imageUrl,
             time = { seconds },
             energy = { spectrum.value.bassLevel() },
             modifier = Modifier.fillMaxSize(),
@@ -198,11 +207,11 @@ fun NowPlayingScreen(
             Spacer(Modifier.weight(0.8f))
             RadialSpectrumVisualizer(
                 spectrum = { spectrum.value },
-                style = style,
-                onStyleChange = { style = it },
+                style = settings.style,
+                onStyleChange = { next -> viewModel.updateSettings { it.copy(style = next) } },
                 modifier = Modifier.fillMaxWidth(0.94f),
                 innerRadiusFraction = ART_FRACTION,
-                colors = Dusk.ring,
+                colors = settings.backdrop.look().ring,
                 interactive = false,
                 glow = true,
             ) {
@@ -220,7 +229,11 @@ fun NowPlayingScreen(
                 )
             }
             Spacer(Modifier.height(40.dp))
-            FloatingTitle(track = playback.track, time = { seconds })
+            FloatingTitle(
+                track = playback.track,
+                time = { seconds },
+                fontFamily = TitleFonts.byId(settings.fontId).family,
+            )
             Spacer(Modifier.weight(1.2f))
         }
 
@@ -231,11 +244,12 @@ fun NowPlayingScreen(
         ) {
             ControlsOverlay(
                 playback = playback,
-                style = style,
+                style = settings.style,
                 mode = mode,
                 micGranted = micGranted,
                 onClose = onBack,
-                onStyle = { style = style.next(); touched() },
+                onStyle = { viewModel.updateSettings { it.copy(style = it.style.next()) }; touched() },
+                onSettings = { settingsOpen = true; touched() },
                 onEnableLive = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO); touched() },
                 onShuffle = { viewModel.toggleShuffle(); touched() },
                 onPrevious = { viewModel.skipPrevious(); touched() },
@@ -245,6 +259,59 @@ fun NowPlayingScreen(
                 onSeek = { viewModel.seekTo(it); touched() },
                 onScrub = touched,
             )
+        }
+
+        // One-time question: should the ring react to the real audio?
+        if (!micGranted && !settings.askedForMic && !controlsVisible) {
+            LiveAudioPrompt(
+                onAllow = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+                onLater = { viewModel.updateSettings { it.copy(askedForMic = true) } },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(20.dp),
+            )
+        }
+    }
+
+    if (settingsOpen) {
+        VisualizerSettingsSheet(
+            settings = settings,
+            sampleTitle = playback.track?.name ?: "Spectra",
+            liveGranted = micGranted,
+            mode = mode,
+            onChange = viewModel::updateSettings,
+            onEnableLive = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+            onDismiss = { settingsOpen = false; touched() },
+        )
+    }
+}
+
+@Composable
+private fun LiveAudioPrompt(onAllow: () -> Unit, onLater: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xE6161330))
+            .pointerInput(Unit) { detectTapGestures { } } // don't toggle the controls underneath
+            .padding(18.dp),
+    ) {
+        Text(
+            "Make the visualizer match the music?",
+            style = TextStyle(color = Dusk.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Spotify doesn't share its audio with other apps. With microphone permission Spectra reads the " +
+                "phone's audio output, so the ring follows the real beat and melody. Nothing is recorded or stored.",
+            style = TextStyle(color = Dusk.TextDim, fontSize = 13.sp, lineHeight = 18.sp),
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+            TextButton(onClick = onLater) { Text("Not now", color = Dusk.TextDim) }
+            Spacer(Modifier.width(8.dp))
+            TextButton(onClick = onAllow) { Text("Allow", color = Dusk.Lavender, fontWeight = FontWeight.SemiBold) }
         }
     }
 }
@@ -286,7 +353,7 @@ private val TitleShadow = Shadow(color = Color(0xAA000000), offset = Offset(0f, 
 /** Song name and artist, no background, drifting gently up and down. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FloatingTitle(track: NowPlayingTrack?, time: () -> Float) {
+private fun FloatingTitle(track: NowPlayingTrack?, time: () -> Float, fontFamily: FontFamily?) {
     AnimatedContent(
         targetState = track,
         contentKey = { it?.uri },
@@ -306,7 +373,8 @@ private fun FloatingTitle(track: NowPlayingTrack?, time: () -> Float) {
                     color = Dusk.Text,
                     fontSize = 26.sp,
                     lineHeight = 32.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = fontFamily,
+                    fontWeight = if (fontFamily == null) FontWeight.SemiBold else FontWeight.Normal,
                     letterSpacing = 0.2.sp,
                     shadow = TitleShadow,
                 ),
@@ -321,6 +389,7 @@ private fun FloatingTitle(track: NowPlayingTrack?, time: () -> Float) {
                     color = Dusk.TextDim,
                     fontSize = 17.sp,
                     lineHeight = 22.sp,
+                    fontFamily = fontFamily,
                     shadow = TitleShadow,
                 ),
                 maxLines = 1,
@@ -339,6 +408,7 @@ private fun ControlsOverlay(
     micGranted: Boolean,
     onClose: () -> Unit,
     onStyle: () -> Unit,
+    onSettings: () -> Unit,
     onEnableLive: () -> Unit,
     onShuffle: () -> Unit,
     onPrevious: () -> Unit,
@@ -376,6 +446,9 @@ private fun ControlsOverlay(
                 Icon(Icons.Rounded.GraphicEq, contentDescription = null, tint = Dusk.Lavender, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(style.label(), color = Dusk.Text)
+            }
+            IconButton(onClick = onSettings) {
+                Icon(Icons.Rounded.Settings, contentDescription = "Visualizer settings", tint = Dusk.Text)
             }
         }
 
@@ -443,12 +516,6 @@ private fun ControlsOverlay(
             }
         }
     }
-}
-
-private fun VisualizerStyle.label(): String = when (this) {
-    VisualizerStyle.BARS -> "Bars"
-    VisualizerStyle.WAVE -> "Wave"
-    VisualizerStyle.DOTS -> "Dots"
 }
 
 /** Isolated so the 4 Hz position ticker only recomposes this composable. */

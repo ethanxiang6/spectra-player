@@ -3,6 +3,7 @@ package com.spectra.player.player
 import android.os.Build
 import android.util.Log
 import android.os.SystemClock
+import com.spectra.player.data.remote.OffsetDto
 import com.spectra.player.data.remote.PlayBodyDto
 import com.spectra.player.data.remote.SpotifyApi
 import retrofit2.HttpException
@@ -14,7 +15,7 @@ import retrofit2.HttpException
 class WebPlaybackFallback(private val api: SpotifyApi) {
 
     /** Returns null on success, otherwise a short reason to show the user. */
-    suspend fun play(uri: String): String? = try {
+    suspend fun play(uri: String, context: PlayContext? = null): String? = try {
         val devices = api.devices().devices.filter { it.id != null && !it.isRestricted }
         val model = Build.MODEL.orEmpty()
         val target = devices.firstOrNull { it.isActive }
@@ -23,10 +24,10 @@ class WebPlaybackFallback(private val api: SpotifyApi) {
             ?: devices.firstOrNull()
         if (target == null) {
             // No device listed: let Spotify pick the most recently used one.
-            val response = api.startPlayback(null, bodyFor(uri))
+            val response = api.startPlayback(null, bodyFor(uri, context))
             if (response.isSuccessful) null else describe(response.code(), response.errorBody()?.string())
         } else {
-            val response = api.startPlayback(target.id, bodyFor(uri))
+            val response = api.startPlayback(target.id, bodyFor(uri, context))
             if (response.isSuccessful) null else describe(response.code(), response.errorBody()?.string())
         }
     } catch (e: HttpException) {
@@ -78,8 +79,12 @@ class WebPlaybackFallback(private val api: SpotifyApi) {
         false
     }
 
-    private fun bodyFor(uri: String) =
-        if (uri.startsWith("spotify:track:") || uri.startsWith("spotify:episode:")) {
+    suspend fun queue(uri: String): Boolean = call { api.addToQueue(uri, null) }
+
+    private fun bodyFor(uri: String, context: PlayContext?) =
+        if (context != null) {
+            PlayBodyDto(contextUri = context.uri, offset = OffsetDto(uri = uri))
+        } else if (uri.startsWith("spotify:track:") || uri.startsWith("spotify:episode:")) {
             PlayBodyDto(uris = listOf(uri))
         } else {
             PlayBodyDto(contextUri = uri)

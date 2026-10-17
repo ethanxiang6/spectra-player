@@ -4,12 +4,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.spectra.player.player.SpotifyRemoteManager
 import com.spectra.player.visualizer.VisualizerController
+import com.spectra.player.visualizer.VisualizerPrefs
+import com.spectra.player.visualizer.VisualizerSettings
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 class NowPlayingViewModel(
     private val remote: SpotifyRemoteManager,
     private val visualizer: VisualizerController,
+    private val prefs: VisualizerPrefs,
 ) : ViewModel() {
+
+    val settings: StateFlow<VisualizerSettings> = prefs.settings
+    fun updateSettings(transform: (VisualizerSettings) -> VisualizerSettings) = prefs.update(transform)
 
     val playback = remote.playback
     val artwork = remote.artwork

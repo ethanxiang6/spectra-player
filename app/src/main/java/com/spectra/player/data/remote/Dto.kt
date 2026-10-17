@@ -32,7 +32,7 @@ data class UserDto(
 data class ArtistDto(val name: String = "")
 
 @Serializable
-data class AlbumDto(val name: String = "", val images: List<ImageDto>? = null)
+data class AlbumDto(val name: String = "", val images: List<ImageDto>? = null, val uri: String? = null)
 
 @Serializable
 data class TrackDto(
@@ -43,6 +43,8 @@ data class TrackDto(
     val album: AlbumDto? = null,
     @SerialName("duration_ms") val durationMs: Long = 0,
     @SerialName("is_local") val isLocal: Boolean = false,
+    @SerialName("track_number") val trackNumber: Int? = null,
+    @SerialName("disc_number") val discNumber: Int? = null,
 )
 
 @Serializable
@@ -107,7 +109,15 @@ data class DeviceDto(
 data class PlayBodyDto(
     val uris: List<String>? = null,
     @SerialName("context_uri") val contextUri: String? = null,
+    val offset: OffsetDto? = null,
 )
+
+/** Where to start inside a context: by track URI or by zero-based position. */
+@Serializable
+data class OffsetDto(val uri: String? = null, val position: Int? = null)
+
+@Serializable
+data class SearchDto(val tracks: PagingDto<TrackDto>? = null)
 
 @Serializable
 data class CurrentlyPlayingDto(

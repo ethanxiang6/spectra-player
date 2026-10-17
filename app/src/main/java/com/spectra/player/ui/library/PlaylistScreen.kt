@@ -105,7 +105,7 @@ fun PlaylistScreen(
                     )
                 }
             } else {
-                trackItems(state, playback, viewModel::loadMore, viewModel::play)
+                trackItems(state, playback, viewModel::loadMore, viewModel::play, viewModel::queue)
             }
         }
     }

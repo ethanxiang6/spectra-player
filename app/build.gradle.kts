@@ -25,7 +25,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 2
-        versionName = "1.1.0" + (System.getenv("GITHUB_RUN_NUMBER")?.let { "-build.$it" } ?: "")
+        versionName = "1.2.0" + (System.getenv("GITHUB_RUN_NUMBER")?.let { "-build.$it" } ?: "")
 
         buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"$spotifyClientId\"")
         buildConfigField("String", "SPOTIFY_REDIRECT_URI", "\"spectra://callback\"")
@@ -86,6 +86,7 @@ dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.graphics) // Brush.sweepGradient, Path, DrawScope
+    implementation(libs.compose.ui.text.google.fonts) // downloadable fonts for the visualizer title
     implementation(libs.compose.foundation)
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.extended)

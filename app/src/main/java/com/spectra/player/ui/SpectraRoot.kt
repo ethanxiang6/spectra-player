@@ -30,6 +30,8 @@ import com.spectra.player.ui.login.LoginScreen
 import com.spectra.player.ui.navigation.Route
 import com.spectra.player.ui.nowplaying.NowPlayingScreen
 import com.spectra.player.ui.nowplaying.NowPlayingViewModel
+import com.spectra.player.ui.search.SearchScreen
+import com.spectra.player.ui.search.SearchViewModel
 
 @Composable
 fun SpectraRoot(container: AppContainer, onLogin: () -> Unit) {
@@ -69,6 +71,15 @@ fun SpectraRoot(container: AppContainer, onLogin: () -> Unit) {
                 LibraryScreen(
                     viewModel = vm,
                     onOpenPlaylist = { nav.navigate(Route.PlaylistDetail(it.id, it.name)) },
+                    onOpenNowPlaying = { nav.navigate(Route.NowPlaying) },
+                    onOpenSearch = { nav.navigate(Route.Search) },
+                )
+            }
+            composable<Route.Search> {
+                val vm: SearchViewModel = viewModel(factory = factory)
+                SearchScreen(
+                    viewModel = vm,
+                    onBack = { nav.navigateUp() },
                     onOpenNowPlaying = { nav.navigate(Route.NowPlaying) },
                 )
             }

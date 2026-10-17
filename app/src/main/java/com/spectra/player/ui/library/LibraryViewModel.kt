@@ -11,6 +11,7 @@ import com.spectra.player.data.repository.LibraryRepository
 import com.spectra.player.data.repository.NetworkMonitor
 import com.spectra.player.data.userMessage
 import com.spectra.player.player.SpotifyRemoteManager
+import com.spectra.player.player.PlayContext
 import com.spectra.player.player.toNowPlaying
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -131,7 +132,13 @@ class LibraryViewModel(
 
     fun connectRemote() = remote.connect(force = true)
     fun connectViaSpotify(activity: android.app.Activity) = remote.connectViaSpotify(activity)
-    fun play(track: Track) = remote.play(track.uri, track.toNowPlaying())
+    /** Plays inside the Liked Songs collection, starting at [index], so it continues through the library. */
+    fun play(index: Int, track: Track) {
+        val context = _profile.value?.id?.let { PlayContext("spotify:user:$it:collection", index) }
+        remote.play(track.uri, track.toNowPlaying(), context)
+    }
+
+    fun queue(track: Track) = remote.queue(track.uri, track.name)
     fun skipNext() = remote.skipNext()
     fun togglePlayPause() = remote.togglePlayPause()
 

@@ -60,6 +60,14 @@ class LibraryRepository(
         return Page(items, nextOffsetOf(page.next, offset, page.items.size))
     }
 
+    /** Songs from the whole catalogue, not only the user's library. */
+    suspend fun searchTracks(query: String, offset: Int): Page<Track> {
+        val page = api.search(query, type = "track", limit = SEARCH_PAGE_SIZE, offset = offset).tracks
+            ?: return Page(emptyList(), nextOffset = null)
+        val items = page.items.map { it.toDomain() }
+        return Page(items, nextOffsetOf(page.next, offset, page.items.size))
+    }
+
     suspend fun cachedSavedTracks(): List<Track> = cache.savedTracks()
 
     suspend fun clearCache() = cache.clear()
@@ -89,5 +97,7 @@ class LibraryRepository(
 
     private companion object {
         const val PAGE_SIZE = 50
+        // Development-mode apps get at most 10 search results per request.
+        const val SEARCH_PAGE_SIZE = 10
     }
 }

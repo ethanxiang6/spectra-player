@@ -56,7 +56,9 @@ class SpotifyRemoteManager(
     private var remote: SpotifyAppRemote? = null
     private var playerSubscription: Subscription<PlayerState>? = null
     private var lastImageUri: String? = null
-    private var pendingPlayUri: String? = null
+    private var pendingPlay: PendingPlay? = null
+
+    private data class PendingPlay(val uri: String, val context: PlayContext?)
     private val mainHandler = Handler(Looper.getMainLooper())
     private var attempt = 0
 
@@ -299,7 +301,7 @@ class SpotifyRemoteManager(
         remote?.let { SpotifyAppRemote.disconnect(it) }
         remote = null
         lastImageUri = null
-        pendingPlayUri = null
+        pendingPlay = null
         connectAgainWithAuthView = null
         _playback.value = PlaybackState.Idle
         _artwork.value = null
@@ -310,11 +312,16 @@ class SpotifyRemoteManager(
     // ---- Transport -------------------------------------------------------------------------
 
     /** Plays a Spotify URI (track, album or playlist). Connects first if needed. */
-    fun play(uri: String, hint: NowPlayingTrack? = null) {
+    /**
+     * Plays [uri]. With a [context] (a playlist, the Liked Songs collection or an album) playback
+     * starts at that song *inside* the context, so it carries on through the same list instead of
+     * Spotify picking songs on its own.
+     */
+    fun play(uri: String, hint: NowPlayingTrack? = null, context: PlayContext? = null) {
         if (hint != null) showProvisional(hint)
         val r = remote
         if (r == null || !r.isConnected) {
-            pendingPlayUri = uri
+            pendingPlay = PendingPlay(uri, context)
             if (_connection.value == Connection.NeedsApproval) {
                 _messages.tryEmit("Tap \"Approve in Spotify\" first, then try again.")
             } else {
@@ -322,19 +329,63 @@ class SpotifyRemoteManager(
             }
             return
         }
-        r.playerApi.play(uri).setErrorCallback { error ->
+        if (context != null && context.index == null) {
+            // App Remote can only start a context by index; let the Web API find the song by URI.
+            playViaWebApi(uri, context, appRemoteError = null)
+            return
+        }
+        val index = context?.index
+        val call = if (context != null && index != null) {
+            r.playerApi.skipToIndex(context.uri, index)
+        } else {
+            r.playerApi.play(uri)
+        }
+        val isList = context != null || !uri.startsWith("spotify:track:")
+        call.setResultCallback { if (isList) mainHandler.post { stayInContext(r) } }
+        call.setErrorCallback { error ->
             mainHandler.post {
                 if (error is com.spotify.android.appremote.api.error.SpotifyDisconnectedException ||
                     error is com.spotify.android.appremote.api.error.SpotifyConnectionTerminatedException
                 ) {
                     // Stale connection: reconnect and play once connected.
                     if (remote === r) dropRemote()
-                    pendingPlayUri = uri
+                    pendingPlay = PendingPlay(uri, context)
                     requestConnect(showAuthView = false)
                 } else {
-                    playViaWebApi(uri, error)
+                    playViaWebApi(uri, context, error)
                 }
             }
+        }
+    }
+
+    /**
+     * When the end of a playlist is reached, Spotify's Autoplay would continue with recommended
+     * songs. Repeat-all keeps playback inside the list instead (only if repeat was off).
+     */
+    private fun stayInContext(r: SpotifyAppRemote) {
+        if (_playback.value.repeatMode == 0 && r.isConnected) r.playerApi.setRepeat(REPEAT_ALL)
+    }
+
+    /** Adds a song to Spotify's queue (plays after the current song). */
+    fun queue(uri: String, name: String) {
+        val r = liveRemote()
+        if (r == null) {
+            webQueue(uri, name)
+            return
+        }
+        r.playerApi.queue(uri)
+            .setResultCallback { _messages.tryEmit("Added \"$name\" to the queue") }
+            .setErrorCallback { mainHandler.post { webQueue(uri, name) } }
+    }
+
+    private fun webQueue(uri: String, name: String) {
+        val web = webPlayback
+        scope.launch {
+            val ok = web?.queue(uri) ?: false
+            _messages.emit(
+                if (ok) "Added \"$name\" to the queue"
+                else "Couldn't add to the queue. Start playing something first, then try again.",
+            )
         }
     }
 
@@ -403,9 +454,9 @@ class SpotifyRemoteManager(
             .setResultCallback { caps -> _canPlayOnDemand.value = caps.canPlayOnDemand }
             .setErrorCallback { Log.w(TAG, "Capabilities unavailable: ${it.javaClass.simpleName}") }
 
-        pendingPlayUri?.let { uri ->
-            pendingPlayUri = null
-            play(uri)
+        pendingPlay?.let { pending ->
+            pendingPlay = null
+            play(pending.uri, context = pending.context)
         }
     }
 
@@ -446,22 +497,26 @@ class SpotifyRemoteManager(
     }
 
     /** App Remote refused the play request: try Spotify Connect via the Web API, then explain. */
-    private fun playViaWebApi(uri: String, appRemoteError: Throwable) {
-        val sdkReason = describeSdkError(appRemoteError)
-        Log.w(TAG, "App Remote play failed: $sdkReason")
+    /** App Remote refused (or can't do) the play request: try Spotify Connect via the Web API. */
+    private fun playViaWebApi(uri: String, context: PlayContext?, appRemoteError: Throwable?) {
+        val sdkReason = appRemoteError?.let { describeSdkError(it) }
+        if (sdkReason != null) Log.w(TAG, "App Remote play failed: $sdkReason")
         val fallback = webPlayback
         if (fallback == null) {
-            _messages.tryEmit("Couldn't start playback ($sdkReason).")
+            _messages.tryEmit("Couldn't start playback (${sdkReason ?: "no connection"}).")
             return
         }
         scope.launch {
-            val webReason = fallback.play(uri)
+            val webReason = fallback.play(uri, context)
             if (webReason == null) { // started via the Web API
                 delay(800)
                 refreshFromWeb()
                 return@launch
             }
-            _messages.emit("Couldn't start playback. Spotify app: $sdkReason. Web API: $webReason")
+            _messages.emit(
+                if (sdkReason != null) "Couldn't start playback. Spotify app: $sdkReason. Web API: $webReason"
+                else "Couldn't start playback: $webReason",
+            )
         }
     }
 
@@ -503,5 +558,6 @@ class SpotifyRemoteManager(
         const val SPOTIFY_HANDOFF_DELAY_MS = 1_200L
         const val AUTO_RECONNECT_MIN_UPTIME_MS = 5_000L
         const val WEB_POLL_MS = 4_000L
+        const val REPEAT_ALL = 2 // com.spotify.protocol.types.Repeat.ALL
     }
 }

@@ -48,3 +48,9 @@ fun com.spectra.player.data.Track.toNowPlaying() = NowPlayingTrack(
     imageUri = null,
     imageUrl = imageUrl,
 )
+
+/**
+ * A list to play a song inside: a playlist, the Liked Songs collection or an album.
+ * [index] is the song's position (App Remote needs it); null means "find it by URI" (Web API).
+ */
+data class PlayContext(val uri: String, val index: Int?)
