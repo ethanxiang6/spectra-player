@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -30,6 +31,8 @@ import com.spectra.player.ui.login.LoginScreen
 import com.spectra.player.ui.navigation.Route
 import com.spectra.player.ui.nowplaying.NowPlayingScreen
 import com.spectra.player.ui.nowplaying.NowPlayingViewModel
+import com.spectra.player.ui.nowplaying.SkyBackdrop
+import com.spectra.player.ui.settings.AppSettingsScreen
 import com.spectra.player.ui.search.SearchScreen
 import com.spectra.player.ui.search.SearchViewModel
 
@@ -61,7 +64,18 @@ fun SpectraRoot(container: AppContainer, onLogin: () -> Unit) {
         }
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    val appSettings by container.appPrefs.settings.collectAsStateWithLifecycle()
+    Box(modifier = Modifier.fillMaxSize()) {
+        // The chosen sky, drawn once behind every screen (static: no animation outside the visualizer).
+        SkyBackdrop(
+            backdrop = appSettings.theme,
+            showStars = appSettings.stars,
+            artwork = null,
+            imageUrl = null,
+            time = { 0f },
+            energy = { 0f },
+            modifier = Modifier.fillMaxSize(),
+        )
         NavHost(navController = nav, startDestination = startDestination) {
             composable<Route.Login> {
                 LoginScreen(state = authState, onLogin = onLogin)
@@ -73,7 +87,11 @@ fun SpectraRoot(container: AppContainer, onLogin: () -> Unit) {
                     onOpenPlaylist = { nav.navigate(Route.PlaylistDetail(it.id, it.name)) },
                     onOpenNowPlaying = { nav.navigate(Route.NowPlaying) },
                     onOpenSearch = { nav.navigate(Route.Search) },
+                    onOpenSettings = { nav.navigate(Route.Settings) },
                 )
+            }
+            composable<Route.Settings> {
+                AppSettingsScreen(prefs = container.appPrefs, onBack = { nav.navigateUp() })
             }
             composable<Route.Search> {
                 val vm: SearchViewModel = viewModel(factory = factory)

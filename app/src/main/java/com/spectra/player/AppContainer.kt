@@ -85,4 +85,5 @@ class AppContainer(context: Context) {
     val remote = SpotifyRemoteManager(appContext, WebPlaybackFallback(spotifyApi))
     val visualizer = VisualizerController(library)
     val visualizerPrefs = VisualizerPrefs(appContext)
+    val appPrefs = com.spectra.player.ui.theme.AppPrefs(appContext)
 }

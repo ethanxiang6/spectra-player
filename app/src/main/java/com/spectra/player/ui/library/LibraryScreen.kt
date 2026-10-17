@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Star
@@ -88,6 +89,7 @@ fun LibraryScreen(
     onOpenPlaylist: (Playlist) -> Unit,
     onOpenNowPlaying: () -> Unit,
     onOpenSearch: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val songs by viewModel.songs.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
@@ -113,7 +115,7 @@ fun LibraryScreen(
                         Icon(Icons.Rounded.Search, contentDescription = "Search Spotify")
                     }
                     PremiumChip(premium)
-                    ProfileMenu(profile, onSignOut = viewModel::signOut)
+                    ProfileMenu(profile, onSettings = onOpenSettings, onSignOut = viewModel::signOut)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
@@ -422,7 +424,7 @@ private fun PremiumChip(status: PremiumStatus) {
 }
 
 @Composable
-private fun ProfileMenu(profile: UserProfile?, onSignOut: () -> Unit) {
+private fun ProfileMenu(profile: UserProfile?, onSettings: () -> Unit, onSignOut: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
@@ -440,6 +442,14 @@ private fun ProfileMenu(profile: UserProfile?, onSignOut: () -> Unit) {
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
+            DropdownMenuItem(
+                text = { Text("App settings") },
+                leadingIcon = { Icon(Icons.Rounded.Settings, contentDescription = null) },
+                onClick = {
+                    open = false
+                    onSettings()
+                },
+            )
             DropdownMenuItem(
                 text = { Text("Sign out") },
                 leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null) },

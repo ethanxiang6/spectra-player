@@ -6,6 +6,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.lifecycleScope
 import com.spectra.player.ui.SpectraRoot
@@ -27,7 +29,8 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) handleAuthRedirect(intent)
 
         setContent {
-            SpectraTheme {
+            val appSettings by container.appPrefs.settings.collectAsState()
+            SpectraTheme(theme = appSettings.theme) {
                 SpectraRoot(
                     container = container,
                     onLogin = { container.authManager.launchLogin(this) },

@@ -4,6 +4,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.lerp
+import com.spectra.player.ui.nowplaying.look
+import com.spectra.player.visualizer.Backdrop
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -56,10 +60,56 @@ private val SpectraTypography = Typography(
 )
 
 @Composable
-fun SpectraTheme(content: @Composable () -> Unit) {
+fun SpectraTheme(
+    theme: Backdrop? = null,
+    content: @Composable () -> Unit,
+) {
     MaterialTheme(
-        colorScheme = SpectraDarkColors,
+        colorScheme = theme?.let { remember(it) { schemeFor(it) } } ?: SpectraDarkColors,
         typography = SpectraTypography,
         content = content,
+    )
+}
+
+/**
+ * Dark scheme taken from a sky theme: accents from its ring colours, surfaces tinted with its
+ * darkest sky colour. The background is transparent so the sky drawn behind every screen shows.
+ */
+private fun schemeFor(theme: Backdrop): androidx.compose.material3.ColorScheme {
+    val look = theme.look()
+    val base = look.stops.firstOrNull()?.second ?: Color(0xFF0B0B10)
+    val mid = look.stops.getOrNull(look.stops.size / 2)?.second ?: base
+    val (p, s, t) = Triple(look.ring[0], look.ring[1], look.ring[2])
+    fun tint(c: Color, amount: Float) = lerp(c, Color.White, amount)
+    return darkColorScheme(
+        primary = p,
+        onPrimary = base,
+        primaryContainer = lerp(base, p, 0.35f),
+        onPrimaryContainer = tint(p, 0.6f),
+        secondary = s,
+        onSecondary = base,
+        secondaryContainer = lerp(base, s, 0.3f),
+        onSecondaryContainer = tint(s, 0.6f),
+        tertiary = t,
+        onTertiary = base,
+        tertiaryContainer = lerp(base, t, 0.3f),
+        onTertiaryContainer = tint(t, 0.6f),
+        background = Color.Transparent,
+        onBackground = Color(0xFFF2EFFC),
+        surface = lerp(base, mid, 0.5f),
+        onSurface = Color(0xFFF2EFFC),
+        surfaceVariant = tint(lerp(base, mid, 0.6f), 0.08f),
+        onSurfaceVariant = Color(0xFFC9C4E0),
+        surfaceContainerLowest = base.copy(alpha = 0.85f),
+        surfaceContainerLow = tint(base, 0.03f).copy(alpha = 0.88f),
+        surfaceContainer = tint(lerp(base, mid, 0.4f), 0.05f).copy(alpha = 0.92f),
+        surfaceContainerHigh = tint(lerp(base, mid, 0.5f), 0.08f).copy(alpha = 0.95f),
+        surfaceContainerHighest = tint(lerp(base, mid, 0.6f), 0.12f),
+        outline = Color(0xFF938EAE),
+        outlineVariant = tint(base, 0.18f),
+        error = Color(0xFFFFB4AB),
+        onError = Color(0xFF690005),
+        errorContainer = Color(0xFF93000A),
+        onErrorContainer = Color(0xFFFFDAD6),
     )
 }

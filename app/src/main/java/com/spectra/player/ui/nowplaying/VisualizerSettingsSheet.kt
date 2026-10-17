@@ -150,7 +150,7 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun BackdropTile(backdrop: Backdrop, selected: Boolean, onClick: () -> Unit) {
+internal fun BackdropTile(backdrop: Backdrop, selected: Boolean, onClick: () -> Unit) {
     val look = backdrop.look()
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable(onClick = onClick)) {
         Box(
@@ -192,7 +192,7 @@ private fun BackdropTile(backdrop: Backdrop, selected: Boolean, onClick: () -> U
 }
 
 @Composable
-private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

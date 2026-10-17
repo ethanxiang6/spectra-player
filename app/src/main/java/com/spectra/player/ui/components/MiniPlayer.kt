@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -71,7 +72,7 @@ fun MiniPlayer(
             .navigationBarsPadding()
             .padding(horizontal = 10.dp, vertical = 8.dp)
             .clip(shape)
-            .background(Brush.horizontalGradient(listOf(Color(0xFF1A1740), Color(0xFF2A2152))))
+            .background(Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.secondaryContainer)))
             .clickable(onClickLabel = "Open visualizer", onClick = onOpen),
     ) {
         Row(
