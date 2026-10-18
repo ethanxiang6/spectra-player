@@ -85,6 +85,11 @@ fun RadialSpectrumVisualizer(
     mirrored: Boolean = true,
     /** Degrees to turn the ring (not the centre content); read while drawing. */
     ringRotation: () -> Float = { 0f },
+    /**
+     * Intro progress, read while drawing: 0 = nothing, dots pop in from the top down both sides
+     * until 1 (full ring of dots), then the bars grow in until 1.3. Default: fully shown.
+     */
+    reveal: () -> Float = { 2f },
     centerContent: @Composable BoxScope.() -> Unit = {},
 ) {
     var touch by remember { mutableStateOf<Offset?>(null) }
@@ -129,7 +134,7 @@ fun RadialSpectrumVisualizer(
             val touchAngle = touch?.let { atan2(it.y - center.y, it.x - center.x) }
 
             // Bass-reactive glow ring behind everything.
-            val bass = bins.bassLevel()
+            val bass = bins.bassLevel() * revealGrowth(reveal())
             drawCircle(
                 color = palette[0].copy(alpha = 0.10f + 0.30f * bass),
                 radius = inner * (1.0f + 0.10f * bass),
@@ -137,15 +142,33 @@ fun RadialSpectrumVisualizer(
                 style = Stroke(width = 2.dp.toPx()),
             )
 
+            val rv = reveal()
             when (style) {
-                VisualizerStyle.BARS -> drawBars(bins, center, inner, maxLen, brush, touchAngle, glow, mirrored)
-                VisualizerStyle.WAVE -> drawWave(bins, center, inner, maxLen, brush, touchAngle, glow, mirrored)
-                VisualizerStyle.DOTS -> drawDots(bins, center, inner, maxLen, brush, touchAngle, glow, mirrored)
+                VisualizerStyle.BARS -> drawBars(bins, center, inner, maxLen, brush, touchAngle, glow, mirrored, rv)
+                VisualizerStyle.WAVE -> drawWave(bins, center, inner, maxLen, brush, touchAngle, glow, mirrored, rv)
+                VisualizerStyle.DOTS -> drawDots(bins, center, inner, maxLen, brush, touchAngle, glow, mirrored, rv)
             }
         }
         centerContent()
     }
 }
+
+// ---- Intro: dots pop in from the top, down both sides, then grow into bars ----------------
+
+/** 0..1 for a slot during the intro: 0 = not shown yet, 1 = fully popped in. */
+private fun revealPop(slot: Int, slots: Int, reveal: Float): Float {
+    if (reveal >= 1.2f) return 1f
+    val around = slot.toFloat() / slots                 // 0 at the top, clockwise
+    val fromTop = minOf(around, 1f - around) * 2f       // 0 at the top, 1 at the bottom
+    val jitter = fract(sin(slot * 12.9898f) * 43758.547f)
+    val appearAt = 0.72f * fromTop + 0.25f * jitter      // a little scattered, like stars appearing
+    return ((reveal - appearAt) / 0.08f).coerceIn(0f, 1f)
+}
+
+/** Bars stay as dots until the ring is complete, then grow in. */
+private fun revealGrowth(reveal: Float): Float = ((reveal - 1f) / 0.3f).coerceIn(0f, 1f)
+
+private fun fract(x: Float): Float = x - kotlin.math.floor(x)
 
 /** Slot 0 is straight up; slots run clockwise; the second half mirrors the first. */
 private fun slotAngle(slot: Int, slots: Int): Float = slot.toFloat() / slots * TAU - HALF_PI
@@ -183,12 +206,15 @@ private fun DrawScope.drawBars(
     touchAngle: Float?,
     glow: Boolean,
     mirrored: Boolean,
+    reveal: Float,
 ) {
     val slots = bins.size * 2
     val barWidth = (TAU * inner / slots) * 0.55f
     for (slot in 0 until slots) {
         val angle = slotAngle(slot, slots)
-        val level = min(1f, levelFor(bins, slot, mirrored) + touchBoost(angle, touchAngle))
+        val pop = revealPop(slot, slots, reveal)
+        if (pop <= 0f) continue
+        val level = min(1f, levelFor(bins, slot, mirrored) + touchBoost(angle, touchAngle)) * revealGrowth(reveal)
         val length = max(barWidth, level * maxLen)
         val dir = Offset(cos(angle), sin(angle))
         if (glow) {
@@ -198,15 +224,16 @@ private fun DrawScope.drawBars(
                 end = center + dir * (inner + length),
                 strokeWidth = barWidth * 2.8f,
                 cap = StrokeCap.Round,
-                alpha = 0.14f + 0.18f * level,
+                alpha = (0.14f + 0.18f * level) * pop,
             )
         }
         drawLine(
             brush = brush,
             start = center + dir * inner,
             end = center + dir * (inner + length),
-            strokeWidth = barWidth,
+            strokeWidth = barWidth * (0.4f + 0.6f * pop),
             cap = StrokeCap.Round,
+            alpha = pop,
         )
     }
 }
@@ -220,11 +247,13 @@ private fun DrawScope.drawWave(
     touchAngle: Float?,
     glow: Boolean,
     mirrored: Boolean,
+    reveal: Float,
 ) {
     val n = bins.size * 2
+    if (reveal <= 0f) return
     val points = Array(n) { slot ->
         val angle = slotAngle(slot, n)
-        val level = min(1f, levelFor(bins, slot, mirrored) + touchBoost(angle, touchAngle))
+        val level = min(1f, levelFor(bins, slot, mirrored) + touchBoost(angle, touchAngle)) * revealGrowth(reveal)
         val r = inner + level * maxLen
         Offset(center.x + cos(angle) * r, center.y + sin(angle) * r)
     }
@@ -241,9 +270,10 @@ private fun DrawScope.drawWave(
         }
         close()
     }
-    drawPath(path, brush = brush, alpha = 0.16f)
-    if (glow) drawPath(path, brush = brush, alpha = 0.22f, style = Stroke(width = 10.dp.toPx(), join = StrokeJoin.Round))
-    drawPath(path, brush = brush, style = Stroke(width = 3.dp.toPx(), join = StrokeJoin.Round))
+    val fade = reveal.coerceIn(0f, 1f)
+    drawPath(path, brush = brush, alpha = 0.16f * fade)
+    if (glow) drawPath(path, brush = brush, alpha = 0.22f * fade, style = Stroke(width = 10.dp.toPx(), join = StrokeJoin.Round))
+    drawPath(path, brush = brush, alpha = fade, style = Stroke(width = 3.dp.toPx(), join = StrokeJoin.Round))
 }
 
 private fun DrawScope.drawDots(
@@ -255,13 +285,16 @@ private fun DrawScope.drawDots(
     touchAngle: Float?,
     glow: Boolean,
     mirrored: Boolean,
+    reveal: Float,
 ) {
     val slots = bins.size * 2
     for (slot in 0 until slots) {
         val angle = slotAngle(slot, slots)
-        val level = min(1f, levelFor(bins, slot, mirrored) + touchBoost(angle, touchAngle))
+        val pop = revealPop(slot, slots, reveal)
+        if (pop <= 0f) continue
+        val level = min(1f, levelFor(bins, slot, mirrored) + touchBoost(angle, touchAngle)) * revealGrowth(reveal)
         val dir = Offset(cos(angle), sin(angle))
-        val radius = 1.6.dp.toPx() + level * 2.8.dp.toPx()
+        val radius = (1.6.dp.toPx() + level * 2.8.dp.toPx()) * pop
         // Faint resting ring + the reactive dot that lifts off it.
         drawCircle(Color.White.copy(alpha = 0.08f), 1.4.dp.toPx(), center + dir * inner)
         if (glow) drawCircle(brush, radius * 2.6f, center + dir * (inner + level * maxLen), alpha = 0.18f)

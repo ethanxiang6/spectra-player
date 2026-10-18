@@ -61,6 +61,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -155,7 +156,19 @@ fun NowPlayingScreen(
     var lastInteraction by remember { mutableLongStateOf(0L) }
     val touched = { lastInteraction = SystemClock.uptimeMillis() }
 
+    // Intro: replays every time the visualizer opens (or the app comes back to it).
+    val reveal = remember { androidx.compose.animation.core.Animatable(0f) }
+    var revealRun by remember { mutableIntStateOf(0) }
+    LaunchedEffect(revealRun) {
+        reveal.snapTo(0f)
+        reveal.animateTo(
+            1.3f,
+            androidx.compose.animation.core.tween(durationMillis = 1_700, easing = androidx.compose.animation.core.LinearEasing),
+        )
+    }
+
     LifecycleStartEffect(Unit) {
+        revealRun++
         val granted = context.hasRecordAudioPermission()
         micGranted = granted
         viewModel.startVisualizer()
@@ -232,6 +245,7 @@ fun NowPlayingScreen(
                 mirrored = mode != VisualizerMode.LIVE,
                 // Live: the ring drifts slowly so bulges show up all around it over time.
                 ringRotation = { if (mode == VisualizerMode.LIVE) (seconds * 5f) % 360f else 0f },
+                reveal = { reveal.value },
             ) {
                 AlbumDisc(
                     artwork = artwork,
