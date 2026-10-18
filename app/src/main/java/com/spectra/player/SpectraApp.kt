@@ -9,6 +9,5 @@ class SpectraApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
-        com.spectra.player.visualizer.SpotifyAudioSession.init(this)
     }
 }

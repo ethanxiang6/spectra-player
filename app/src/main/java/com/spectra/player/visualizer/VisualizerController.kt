@@ -107,8 +107,9 @@ class VisualizerController(
                 val playing = pb.isPlaying && pb.track != null
 
                 // Open / close the native tap as permission or the user's choice changes.
-                // Spotify's own audio session when known; otherwise the overall mix (gated below).
-                val wanted = SpotifyAudioSession.sessionId ?: 0
+                // The overall output mix. (Attaching to Spotify's own audio session silenced
+                // playback on some phones, so the mix is used and gated to Spotify below.)
+                val wanted = 0
                 if (liveAllowed.value) {
                     if (tap != null && tapSession != wanted) {
                         tap.release()
@@ -118,11 +119,7 @@ class VisualizerController(
                     if (tap == null && !tapUnavailable) {
                         tap = NativeSpectrumTap.create(bandCount, wanted)
                         tapSession = wanted
-                        if (tap == null && wanted != 0) {
-                            SpotifyAudioSession.invalidate() // stale id: fall back to the gated mix
-                        } else if (tap == null) {
-                            tapUnavailable = true
-                        }
+                        if (tap == null) tapUnavailable = true
                     }
                 } else if (tap != null) {
                     tap.release()
