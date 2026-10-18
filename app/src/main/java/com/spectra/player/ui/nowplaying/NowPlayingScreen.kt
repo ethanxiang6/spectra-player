@@ -107,7 +107,6 @@ import kotlin.math.sin
 
 private const val ART_FRACTION = 0.5f
 private const val CONTROLS_HIDE_MS = 4_500L
-private const val INTRO_START_DELAY_MS = 420L
 
 /**
  * Full-screen visualizer: an evening sky, the radial spectrum around the album art, and the song
@@ -163,10 +162,14 @@ fun NowPlayingScreen(
     LaunchedEffect(revealRun) {
         reveal.snapTo(0f)
         withFrameNanos { }
-        delay(INTRO_START_DELAY_MS) // let the screen finish sliding up so the whole sweep is visible
+        // Delay lets the screen finish sliding up so the whole sweep is visible (adjustable in settings).
+        delay(settings.introDelayMs.toLong())
         reveal.animateTo(
             1.25f,
-            androidx.compose.animation.core.tween(durationMillis = 1_250, easing = androidx.compose.animation.core.LinearEasing),
+            androidx.compose.animation.core.tween(
+                durationMillis = settings.introDurationMs,
+                easing = androidx.compose.animation.core.LinearEasing,
+            ),
         )
     }
 
@@ -310,6 +313,11 @@ fun NowPlayingScreen(
                 }
             },
             onDismiss = { settingsOpen = false; touched() },
+            onPlayIntro = {
+                settingsOpen = false
+                controlsVisible = false
+                revealRun++
+            },
         )
     }
 }

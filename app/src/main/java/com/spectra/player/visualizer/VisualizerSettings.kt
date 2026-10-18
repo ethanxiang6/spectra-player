@@ -31,6 +31,10 @@ data class VisualizerSettings(
     val liveAudio: Boolean = true,
     /** Extra beat-sync shift in ms on top of the automatic one (+ later, - earlier). */
     val syncOffsetMs: Int = 0,
+    /** How long the opening animation takes, from the first dot to the bars fully grown. */
+    val introDurationMs: Int = 900,
+    /** Wait between opening the visualizer and the animation starting. */
+    val introDelayMs: Int = 420,
 ) {
     companion object {
         const val DEFAULT_FONT = "default"
@@ -55,6 +59,8 @@ class VisualizerPrefs(context: Context) {
             .putBoolean(KEY_ASKED_MIC, next.askedForMic)
             .putBoolean(KEY_LIVE, next.liveAudio)
             .putInt(KEY_SYNC, next.syncOffsetMs)
+            .putInt(KEY_INTRO_DURATION, next.introDurationMs)
+            .putInt(KEY_INTRO_DELAY, next.introDelayMs)
             .apply()
     }
 
@@ -69,6 +75,8 @@ class VisualizerPrefs(context: Context) {
             askedForMic = prefs.getBoolean(KEY_ASKED_MIC, defaults.askedForMic),
             liveAudio = prefs.getBoolean(KEY_LIVE, defaults.liveAudio),
             syncOffsetMs = prefs.getInt(KEY_SYNC, defaults.syncOffsetMs),
+            introDurationMs = prefs.getInt(KEY_INTRO_DURATION, defaults.introDurationMs),
+            introDelayMs = prefs.getInt(KEY_INTRO_DELAY, defaults.introDelayMs),
         )
     }
 
@@ -84,5 +92,7 @@ class VisualizerPrefs(context: Context) {
         const val KEY_ASKED_MIC = "asked_mic"
         const val KEY_LIVE = "live_audio_v2"
         const val KEY_SYNC = "sync_offset_ms"
+        const val KEY_INTRO_DURATION = "intro_duration_ms"
+        const val KEY_INTRO_DELAY = "intro_delay_ms"
     }
 }

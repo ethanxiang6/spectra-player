@@ -58,6 +58,7 @@ fun VisualizerSettingsSheet(
     onChange: ((VisualizerSettings) -> VisualizerSettings) -> Unit,
     onLiveChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
+    onPlayIntro: () -> Unit,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -123,6 +124,29 @@ fun VisualizerSettingsSheet(
                 SwitchRow("Spin the album art", settings.spinArt) { on -> onChange { it.copy(spinArt = on) } }
                 SwitchRow("Stars", settings.stars) { on -> onChange { it.copy(stars = on) } }
             }
+            item(key = "intro") {
+                SectionTitle("Opening animation")
+                MsSlider(
+                    label = "Length",
+                    valueMs = settings.introDurationMs,
+                    range = 200..3000,
+                    step = 50,
+                    onChange = { ms -> onChange { it.copy(introDurationMs = ms) } },
+                )
+                MsSlider(
+                    label = "Delay before it starts",
+                    valueMs = settings.introDelayMs,
+                    range = 0..1500,
+                    step = 20,
+                    onChange = { ms -> onChange { it.copy(introDelayMs = ms) } },
+                )
+                androidx.compose.material3.TextButton(
+                    onClick = onPlayIntro,
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                ) {
+                    Text("Play intro", color = Dusk.Lavender)
+                }
+            }
             item(key = "font-title") {
                 SectionTitle("Title font")
                 Text(
@@ -140,6 +164,29 @@ fun VisualizerSettingsSheet(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun MsSlider(label: String, valueMs: Int, range: IntRange, step: Int, onChange: (Int) -> Unit) {
+    Column(Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = TextStyle(color = Dusk.Text, fontSize = 14.sp), modifier = Modifier.weight(1f))
+            Text(
+                if (valueMs >= 1000) "%.2f s".format(valueMs / 1000f) else "$valueMs ms",
+                style = TextStyle(color = Dusk.TextDim, fontSize = 13.sp),
+            )
+        }
+        androidx.compose.material3.Slider(
+            value = valueMs.toFloat(),
+            onValueChange = { onChange((it / step).toInt() * step) },
+            valueRange = range.first.toFloat()..range.last.toFloat(),
+            colors = androidx.compose.material3.SliderDefaults.colors(
+                thumbColor = Dusk.Text,
+                activeTrackColor = Dusk.Lavender,
+                inactiveTrackColor = Color.White.copy(alpha = 0.18f),
+            ),
+        )
     }
 }
 
