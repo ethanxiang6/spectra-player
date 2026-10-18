@@ -162,15 +162,25 @@ fun NowPlayingScreen(
     LaunchedEffect(revealRun) {
         reveal.snapTo(0f)
         withFrameNanos { }
-        // Delay lets the screen finish sliding up so the whole sweep is visible (adjustable in settings).
-        delay(settings.introDelayMs.toLong())
-        reveal.animateTo(
-            1.25f,
-            androidx.compose.animation.core.tween(
-                durationMillis = settings.introDurationMs,
-                easing = androidx.compose.animation.core.LinearEasing,
-            ),
-        )
+        // Positive delay: wait before starting. Negative delay: start right away but already
+        // that far into the animation (as if it began before the screen opened).
+        val duration = settings.introDurationMs
+        val delayMs = settings.introDelayMs
+        if (delayMs > 0) delay(delayMs.toLong())
+        val skipped = (-delayMs).coerceIn(0, duration)
+        reveal.snapTo(1.25f * skipped / duration)
+        val remaining = duration - skipped
+        if (remaining > 0) {
+            reveal.animateTo(
+                1.25f,
+                androidx.compose.animation.core.tween(
+                    durationMillis = remaining,
+                    easing = androidx.compose.animation.core.LinearEasing,
+                ),
+            )
+        } else {
+            reveal.snapTo(1.25f)
+        }
     }
 
     LifecycleStartEffect(Unit) {

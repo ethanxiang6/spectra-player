@@ -136,7 +136,7 @@ fun VisualizerSettingsSheet(
                 MsSlider(
                     label = "Delay before it starts",
                     valueMs = settings.introDelayMs,
-                    range = 0..1500,
+                    range = -1500..1500,
                     step = 20,
                     onChange = { ms -> onChange { it.copy(introDelayMs = ms) } },
                 )
@@ -173,13 +173,13 @@ private fun MsSlider(label: String, valueMs: Int, range: IntRange, step: Int, on
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(label, style = TextStyle(color = Dusk.Text, fontSize = 14.sp), modifier = Modifier.weight(1f))
             Text(
-                if (valueMs >= 1000) "%.2f s".format(valueMs / 1000f) else "$valueMs ms",
+                if (kotlin.math.abs(valueMs) >= 1000) "%.2f s".format(valueMs / 1000f) else "$valueMs ms",
                 style = TextStyle(color = Dusk.TextDim, fontSize = 13.sp),
             )
         }
         androidx.compose.material3.Slider(
             value = valueMs.toFloat(),
-            onValueChange = { onChange((it / step).toInt() * step) },
+            onValueChange = { onChange(kotlin.math.round(it / step).toInt() * step) },
             valueRange = range.first.toFloat()..range.last.toFloat(),
             colors = androidx.compose.material3.SliderDefaults.colors(
                 thumbColor = Dusk.Text,
