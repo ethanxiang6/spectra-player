@@ -161,9 +161,10 @@ fun NowPlayingScreen(
     var revealRun by remember { mutableIntStateOf(0) }
     LaunchedEffect(revealRun) {
         reveal.snapTo(0f)
+        withFrameNanos { } // start on a drawn frame so the first part of the sweep isn't skipped
         reveal.animateTo(
-            1.3f,
-            androidx.compose.animation.core.tween(durationMillis = 1_700, easing = androidx.compose.animation.core.LinearEasing),
+            1.25f,
+            androidx.compose.animation.core.tween(durationMillis = 950, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
         )
     }
 

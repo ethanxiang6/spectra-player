@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicReference
 
 enum class VisualizerMode(val label: String) {
-    LIVE("Live · device audio mix"),
+    LIVE("Live · Spotify audio"),
     FEATURES("Simulated · Spotify audio features"),
     DEFAULT("Simulated · default profile"),
     IDLE("Waiting for playback"),
@@ -38,6 +38,7 @@ enum class VisualizerMode(val label: String) {
  */
 class VisualizerController(
     private val library: LibraryRepository,
+    private val context: android.content.Context,
     val bandCount: Int = 48,
 ) {
     /** How long to hold live frames back so beats line up with what you hear (see [LiveDelay]). */
@@ -89,7 +90,10 @@ class VisualizerController(
         val smoother = SpectrumSmoother(bandCount)
 
         var tap: NativeSpectrumTap? = null
+        var tapSession = -1
         var tapUnavailable = false
+        var onlySpotify = true
+        var lastGateCheck = 0L
         var silentMs = 0L
         var last = SystemClock.elapsedRealtime()
 
@@ -103,10 +107,22 @@ class VisualizerController(
                 val playing = pb.isPlaying && pb.track != null
 
                 // Open / close the native tap as permission or the user's choice changes.
+                // Spotify's own audio session when known; otherwise the overall mix (gated below).
+                val wanted = SpotifyAudioSession.sessionId ?: 0
                 if (liveAllowed.value) {
+                    if (tap != null && tapSession != wanted) {
+                        tap.release()
+                        tap = null
+                        tapUnavailable = false
+                    }
                     if (tap == null && !tapUnavailable) {
-                        tap = NativeSpectrumTap.create(bandCount)
-                        if (tap == null) tapUnavailable = true
+                        tap = NativeSpectrumTap.create(bandCount, wanted)
+                        tapSession = wanted
+                        if (tap == null && wanted != 0) {
+                            SpotifyAudioSession.invalidate() // stale id: fall back to the gated mix
+                        } else if (tap == null) {
+                            tapUnavailable = true
+                        }
                     }
                 } else if (tap != null) {
                     tap.release()
@@ -114,7 +130,14 @@ class VisualizerController(
                     tapUnavailable = false
                 }
 
-                val peak = tap?.read(live) ?: -1f
+                // On the overall mix, only listen while Spotify is the one playing.
+                if (tapSession == 0 && now - lastGateCheck > GATE_CHECK_MS) {
+                    lastGateCheck = now
+                    onlySpotify = SpotifyAudioSession.onlyOnePlayerActive(context)
+                }
+                val listening = playing && (tapSession != 0 || onlySpotify)
+
+                val peak = if (listening) tap?.read(live) ?: -1f else -1f
                 if (peak > SILENCE_PEAK) silentMs = 0L else if (playing) silentMs += dt
                 val liveUsable = peak >= 0f && silentMs < LIVE_SILENCE_TIMEOUT_MS
 
@@ -150,6 +173,7 @@ class VisualizerController(
 
     private companion object {
         const val FRAME_MS = 16L
+        const val GATE_CHECK_MS = 500L
         const val SILENCE_PEAK = 0.02f
         const val LIVE_SILENCE_TIMEOUT_MS = 1_500L
     }

@@ -83,7 +83,7 @@ class AppContainer(context: Context) {
     val network = NetworkMonitor(appContext)
     val library = LibraryRepository(spotifyApi, LibraryCache(appContext, json))
     val remote = SpotifyRemoteManager(appContext, WebPlaybackFallback(spotifyApi))
-    val visualizer = VisualizerController(library)
+    val visualizer = VisualizerController(library, appContext)
     val visualizerPrefs = VisualizerPrefs(appContext)
     val appPrefs = com.spectra.player.ui.theme.AppPrefs(appContext)
 }

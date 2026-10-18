@@ -49,10 +49,10 @@ class NativeSpectrumTap private constructor(
 
     companion object {
         /** Null when the device or permission state doesn't allow tapping the output mix. */
-        fun create(bands: Int): NativeSpectrumTap? {
+        fun create(bands: Int, sessionId: Int = 0): NativeSpectrumTap? {
             var v: Visualizer? = null
             return try {
-                v = Visualizer(0)
+                v = Visualizer(sessionId)
                 v.setEnabled(false) // capture size can only change while disabled
                 v.setCaptureSize(Visualizer.getCaptureSizeRange()[1])
                 if (Build.VERSION.SDK_INT >= 28) {

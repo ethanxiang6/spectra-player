@@ -157,16 +157,17 @@ fun RadialSpectrumVisualizer(
 
 /** 0..1 for a slot during the intro: 0 = not shown yet, 1 = fully popped in. */
 private fun revealPop(slot: Int, slots: Int, reveal: Float): Float {
-    if (reveal >= 1.2f) return 1f
-    val around = slot.toFloat() / slots                 // 0 at the top, clockwise
-    val fromTop = minOf(around, 1f - around) * 2f       // 0 at the top, 1 at the bottom
-    val jitter = fract(sin(slot * 12.9898f) * 43758.547f)
-    val appearAt = 0.72f * fromTop + 0.25f * jitter      // a little scattered, like stars appearing
-    return ((reveal - appearAt) / 0.08f).coerceIn(0f, 1f)
+    if (reveal >= 1f) return 1f
+    val appearAt = slot.toFloat() / slots * 0.9f        // one clockwise sweep from the top
+    val t = ((reveal - appearAt) / 0.1f).coerceIn(0f, 1f)
+    return t * t * (3f - 2f * t)                         // smoothstep: each dot eases in
 }
 
 /** Bars stay as dots until the ring is complete, then grow in. */
-private fun revealGrowth(reveal: Float): Float = ((reveal - 1f) / 0.3f).coerceIn(0f, 1f)
+private fun revealGrowth(reveal: Float): Float {
+    val t = ((reveal - 1f) / 0.25f).coerceIn(0f, 1f)
+    return t * t * (3f - 2f * t)
+}
 
 private fun fract(x: Float): Float = x - kotlin.math.floor(x)
 
