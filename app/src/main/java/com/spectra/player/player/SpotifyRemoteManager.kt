@@ -71,6 +71,18 @@ class SpotifyRemoteManager(
 
     /** True once App Remote has delivered a player state on the current connection. */
     private var appRemoteStateSeen = false
+
+    /** Set by [seekTo]: where playback should be, so stale reports right after a seek are ignored. */
+    private class SeekGuard(
+        val trackUri: String?,
+        val targetMs: Long,
+        val setAtMs: Long,
+        val playing: Boolean,
+        val untilMs: Long,
+    ) {
+        fun expectedAt(nowMs: Long): Long = if (playing) targetMs + (nowMs - setAtMs) else targetMs
+    }
+    private var seekGuard: SeekGuard? = null
     private var startedActivities = 0
 
     // Spotify's own sample connects with an Activity context; the "allow this app" sheet and the
@@ -116,7 +128,15 @@ class SpotifyRemoteManager(
             _artwork.value = null
             lastImageUri = null
         }
-        _playback.value = state.copy(isShuffling = previous.isShuffling, repeatMode = previous.repeatMode)
+        val guard = seekGuard
+        val now = SystemClock.elapsedRealtime()
+        val keep = guard != null && now < guard.untilMs && state.track?.uri == guard.trackUri
+        _playback.value = state.copy(
+            isShuffling = previous.isShuffling,
+            repeatMode = previous.repeatMode,
+            positionMs = if (keep) guard!!.expectedAt(now) else state.positionMs,
+            capturedAtElapsedMs = now,
+        )
     }
 
     private fun collectLog(): String = try {
@@ -500,6 +520,14 @@ class SpotifyRemoteManager(
      * (that wait made the bar jump back and lag after a drag).
      */
     fun seekTo(positionMs: Long) {
+        val now = SystemClock.elapsedRealtime()
+        seekGuard = SeekGuard(
+            trackUri = _playback.value.track?.uri,
+            targetMs = positionMs,
+            setAtMs = now,
+            playing = _playback.value.isPlaying,
+            untilMs = now + SEEK_GUARD_MS,
+        )
         _playback.value = _playback.value.copy(
             positionMs = positionMs,
             capturedAtElapsedMs = SystemClock.elapsedRealtime(),
@@ -562,6 +590,15 @@ class SpotifyRemoteManager(
         appRemoteStateSeen = true
         val t = state.track
         val knownUrl = _playback.value.track?.takeIf { it.uri == t?.uri }?.imageUrl
+        val now = SystemClock.elapsedRealtime()
+        val reported = state.playbackPosition
+        // Right after a seek Spotify can still report the old position; keep the spot the user
+        // chose until Spotify catches up (or the guard window ends, or the song changes).
+        val guard = seekGuard
+        val stale = guard != null && now < guard.untilMs && t?.uri == guard.trackUri &&
+            kotlin.math.abs(reported - guard.expectedAt(now)) > SEEK_TOLERANCE_MS
+        val position = if (stale) guard!!.expectedAt(now) else reported
+        if (!stale) seekGuard = null
         _playback.value = PlaybackState(
             track = t?.let {
                 NowPlayingTrack(
@@ -575,8 +612,8 @@ class SpotifyRemoteManager(
                 )
             },
             isPlaying = !state.isPaused,
-            positionMs = state.playbackPosition,
-            capturedAtElapsedMs = SystemClock.elapsedRealtime(),
+            positionMs = position,
+            capturedAtElapsedMs = now,
             isShuffling = state.playbackOptions?.isShuffling ?: false,
             repeatMode = state.playbackOptions?.repeatMode ?: 0,
         )
@@ -666,5 +703,7 @@ class SpotifyRemoteManager(
         const val WEB_POLL_MS = 4_000L
         const val REPEAT_ALL = 2 // com.spotify.protocol.types.Repeat.ALL
         const val VERIFY_DELAY_MS = 1_500L
+        const val SEEK_GUARD_MS = 2_500L
+        const val SEEK_TOLERANCE_MS = 1_500L
     }
 }
