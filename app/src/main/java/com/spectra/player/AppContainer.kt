@@ -82,6 +82,7 @@ class AppContainer(context: Context) {
     // --- Data / playback / visualizer ---
     val network = NetworkMonitor(appContext)
     val library = LibraryRepository(spotifyApi, LibraryCache(appContext, json))
+    val lyrics = com.spectra.player.data.lyrics.LyricsRepository(OkHttpClient(), json)
     val remote = SpotifyRemoteManager(appContext, WebPlaybackFallback(spotifyApi))
     val visualizer = VisualizerController(library, appContext)
     val visualizerPrefs = VisualizerPrefs(appContext)

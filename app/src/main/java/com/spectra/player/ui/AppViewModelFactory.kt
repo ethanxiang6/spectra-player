@@ -18,6 +18,6 @@ fun appViewModelFactory(container: AppContainer): ViewModelProvider.Factory = vi
         LibraryViewModel(container.authManager, container.library, container.remote, container.network)
     }
     initializer { PlaylistViewModel(createSavedStateHandle(), container.library, container.remote) }
-    initializer { NowPlayingViewModel(container.remote, container.visualizer, container.visualizerPrefs) }
+    initializer { NowPlayingViewModel(container.remote, container.visualizer, container.visualizerPrefs, container.lyrics) }
     initializer { SearchViewModel(container.library, container.remote) }
 }

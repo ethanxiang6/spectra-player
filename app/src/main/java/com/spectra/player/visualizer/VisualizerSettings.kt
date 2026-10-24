@@ -35,6 +35,8 @@ data class VisualizerSettings(
     val introDurationMs: Int = 900,
     /** Wait between opening the visualizer and the animation starting. */
     val introDelayMs: Int = 420,
+    /** Show the line being sung under the title (synced lyrics from LRCLIB). */
+    val showLyrics: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_FONT = "default"
@@ -61,6 +63,7 @@ class VisualizerPrefs(context: Context) {
             .putInt(KEY_SYNC, next.syncOffsetMs)
             .putInt(KEY_INTRO_DURATION, next.introDurationMs)
             .putInt(KEY_INTRO_DELAY, next.introDelayMs)
+            .putBoolean(KEY_LYRICS, next.showLyrics)
             .apply()
     }
 
@@ -77,6 +80,7 @@ class VisualizerPrefs(context: Context) {
             syncOffsetMs = prefs.getInt(KEY_SYNC, defaults.syncOffsetMs),
             introDurationMs = prefs.getInt(KEY_INTRO_DURATION, defaults.introDurationMs),
             introDelayMs = prefs.getInt(KEY_INTRO_DELAY, defaults.introDelayMs),
+            showLyrics = prefs.getBoolean(KEY_LYRICS, defaults.showLyrics),
         )
     }
 
@@ -94,5 +98,6 @@ class VisualizerPrefs(context: Context) {
         const val KEY_SYNC = "sync_offset_ms"
         const val KEY_INTRO_DURATION = "intro_duration_ms"
         const val KEY_INTRO_DELAY = "intro_delay_ms"
+        const val KEY_LYRICS = "show_lyrics"
     }
 }

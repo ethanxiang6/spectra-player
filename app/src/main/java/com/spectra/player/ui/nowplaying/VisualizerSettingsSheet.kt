@@ -123,6 +123,7 @@ fun VisualizerSettingsSheet(
                 Spacer(Modifier.height(8.dp))
                 SwitchRow("Spin the album art", settings.spinArt) { on -> onChange { it.copy(spinArt = on) } }
                 SwitchRow("Stars", settings.stars) { on -> onChange { it.copy(stars = on) } }
+                SwitchRow("Lyrics", settings.showLyrics) { on -> onChange { it.copy(showLyrics = on) } }
             }
             item(key = "intro") {
                 SectionTitle("Opening animation")

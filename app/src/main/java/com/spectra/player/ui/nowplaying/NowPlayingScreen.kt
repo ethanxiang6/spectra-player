@@ -123,6 +123,7 @@ fun NowPlayingScreen(
     val mode by viewModel.mode.collectAsStateWithLifecycle()
     val spectrum = viewModel.spectrum.collectAsStateWithLifecycle() // read only while drawing
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val lyrics by viewModel.lyrics.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     var micGranted by remember { mutableStateOf(context.hasRecordAudioPermission()) }
@@ -282,6 +283,14 @@ fun NowPlayingScreen(
                 time = { seconds },
                 fontFamily = TitleFonts.byId(settings.fontId).family,
             )
+            if (settings.showLyrics) {
+                Spacer(Modifier.height(18.dp))
+                LyricsBlock(
+                    lyrics = lyrics,
+                    playback = playback,
+                    fontFamily = TitleFonts.byId(settings.fontId).family,
+                )
+            }
             Spacer(Modifier.weight(1.2f))
         }
 
@@ -359,6 +368,85 @@ private fun AlbumDisc(artwork: ImageBitmap?, imageUrl: String?, modifier: Modifi
                 tint = Dusk.TextDim,
                 modifier = Modifier.size(48.dp),
             )
+        }
+    }
+}
+
+/**
+ * The line being sung, with the next line fainter underneath. Fixed height so the ring above
+ * doesn't move when lines change; empty when the song has no synced lyrics.
+ */
+@Composable
+private fun LyricsBlock(
+    lyrics: com.spectra.player.data.lyrics.Lyrics,
+    playback: PlaybackState,
+    fontFamily: FontFamily?,
+) {
+    val lines = (lyrics as? com.spectra.player.data.lyrics.Lyrics.Synced)?.lines.orEmpty()
+    var index by remember(lines) { mutableIntStateOf(-1) }
+    LaunchedEffect(lines, playback) {
+        if (lines.isEmpty()) return@LaunchedEffect
+        while (isActive) {
+            val pos = playback.currentPosition()
+            // Last line whose start time has passed.
+            var lo = 0
+            var hi = lines.size - 1
+            var found = -1
+            while (lo <= hi) {
+                val mid = (lo + hi) / 2
+                if (lines[mid].timeMs <= pos) { found = mid; lo = mid + 1 } else hi = mid - 1
+            }
+            index = found
+            delay(80)
+        }
+    }
+
+    Box(
+        modifier = Modifier.fillMaxWidth().height(96.dp).padding(horizontal = 32.dp),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        AnimatedContent(
+            targetState = index,
+            transitionSpec = {
+                (fadeIn(tween(350)) + androidx.compose.animation.slideInVertically(tween(350)) { it / 3 }) togetherWith
+                    (fadeOut(tween(250)) + androidx.compose.animation.slideOutVertically(tween(250)) { -it / 3 })
+            },
+            label = "lyrics",
+        ) { i ->
+            val current = lines.getOrNull(i)?.text.orEmpty()
+            val next = lines.drop(i + 1).firstOrNull { it.text.isNotEmpty() }?.text.orEmpty()
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    current,
+                    style = TextStyle(
+                        color = Dusk.Text,
+                        fontSize = 19.sp,
+                        lineHeight = 25.sp,
+                        fontFamily = fontFamily,
+                        fontWeight = if (fontFamily == null) FontWeight.Medium else FontWeight.Normal,
+                        shadow = TitleShadow,
+                    ),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                )
+                if (next.isNotEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        next,
+                        style = TextStyle(
+                            color = Dusk.TextDim.copy(alpha = 0.55f),
+                            fontSize = 15.sp,
+                            lineHeight = 20.sp,
+                            fontFamily = fontFamily,
+                            shadow = TitleShadow,
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
         }
     }
 }
