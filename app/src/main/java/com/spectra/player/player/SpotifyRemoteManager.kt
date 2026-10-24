@@ -96,7 +96,11 @@ class SpotifyRemoteManager(
                 override fun onActivityStarted(a: Activity) {
                     foreground = WeakReference(a)
                     startedActivities++
-                    if (startedActivities == 1) scope.launch { refreshFromWeb() }
+                    if (startedActivities == 1) {
+                        // Back in the foreground: don't trust anything missed while away.
+                        liveRemote()?.let { fetchStateNow(it) }
+                        scope.launch { refreshFromWeb(force = remote == null) }
+                    }
                 }
                 override fun onActivityResumed(a: Activity) { foreground = WeakReference(a) }
                 override fun onActivityPaused(a: Activity) = Unit
@@ -109,20 +113,46 @@ class SpotifyRemoteManager(
                 }
             },
         )
-        // Backup "now playing" feed: if App Remote isn't delivering player state (not connected,
-        // or its subscription is silent), ask the Web API what's playing while the app is visible.
+        // Watchdog while the app is visible. Spotify's change notifications sometimes stop
+        // arriving (most often after the app was in the background), which left the old song on
+        // screen. So: re-ask App Remote regularly, and when the song should already have ended
+        // without a change being reported, check both App Remote and the Web API right away.
         scope.launch {
+            var tick = 0
             while (isActive) {
-                delay(WEB_POLL_MS)
-                if (startedActivities > 0 && !appRemoteStateSeen) refreshFromWeb()
+                delay(WATCHDOG_TICK_MS)
+                if (startedActivities == 0) continue
+                tick++
+                val r = remote
+                if (r != null && !r.isConnected) {
+                    onConnectionLost()
+                    continue
+                }
+                val overdue = songOverdue()
+                val live = liveRemote()
+                if (live != null && (overdue || tick % RESYNC_EVERY_TICKS == 0)) fetchStateNow(live)
+                if (live == null && tick % WEB_POLL_EVERY_TICKS == 0) refreshFromWeb(force = true)
+                if (overdue && tick % 2 == 0) refreshFromWeb(force = true)
             }
         }
     }
 
-    private suspend fun refreshFromWeb() {
-        if (appRemoteStateSeen) return
+    /** Playing, and the position is past the end of the song shown: a change was missed. */
+    private fun songOverdue(): Boolean {
+        val pb = _playback.value
+        val duration = pb.track?.durationMs ?: return false
+        if (!pb.isPlaying || duration <= 0) return false
+        val elapsedSinceEnd = (pb.positionMs + (SystemClock.elapsedRealtime() - pb.capturedAtElapsedMs)) - duration
+        return elapsedSinceEnd > OVERDUE_GRACE_MS
+    }
+
+    /** Asks the Web API what's playing. Without [force] it only runs when App Remote is silent. */
+    private suspend fun refreshFromWeb(force: Boolean = false) {
+        if (appRemoteStateSeen && !force) return
         val state = webPlayback?.currentlyPlaying() ?: return
-        if (appRemoteStateSeen) return
+        if (appRemoteStateSeen && !force) return
+        // Don't let a (slower) Web API answer undo a newer App Remote report of the same song.
+        if (force && appRemoteStateSeen && state.track?.uri == _playback.value.track?.uri && !songOverdue()) return
         val previous = _playback.value
         if (previous.track?.uri != state.track?.uri) {
             _artwork.value = null
@@ -573,7 +603,11 @@ class SpotifyRemoteManager(
         playerSubscription?.cancel()
         val subscription = appRemote.playerApi.subscribeToPlayerState()
         subscription.setEventCallback { state -> handlePlayerState(state) }
-        subscription.setErrorCallback { Log.w(TAG, "Player state subscription error: ${it.javaClass.simpleName}") }
+        subscription.setErrorCallback {
+            Log.w(TAG, "Player state subscription error: ${it.javaClass.simpleName}")
+            // Re-subscribe so song changes keep arriving.
+            mainHandler.postDelayed({ if (remote === appRemote && appRemote.isConnected) onConnected(appRemote) }, 1_000)
+        }
         playerSubscription = subscription
 
         appRemote.userApi.capabilities
@@ -700,7 +734,10 @@ class SpotifyRemoteManager(
         const val SPOTIFY_PACKAGE = "com.spotify.music"
         const val SPOTIFY_HANDOFF_DELAY_MS = 1_200L
         const val AUTO_RECONNECT_MIN_UPTIME_MS = 5_000L
-        const val WEB_POLL_MS = 4_000L
+        const val WATCHDOG_TICK_MS = 1_000L
+        const val RESYNC_EVERY_TICKS = 3      // re-ask App Remote every ~3 s
+        const val WEB_POLL_EVERY_TICKS = 4    // Web API every ~4 s when App Remote isn't connected
+        const val OVERDUE_GRACE_MS = 1_500L
         const val REPEAT_ALL = 2 // com.spotify.protocol.types.Repeat.ALL
         const val VERIFY_DELAY_MS = 1_500L
         const val SEEK_GUARD_MS = 2_500L
