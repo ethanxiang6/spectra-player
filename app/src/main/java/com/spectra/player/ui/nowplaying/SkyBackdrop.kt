@@ -45,10 +45,11 @@ object Dusk {
     val Horizon get() = if (mono) Color.Black else Color(0xFF574170)
     val Haze get() = if (mono) Color.White else Color(0xFFE9A08E)
 
-    val Lavender get() = if (mono) Color(0xFFF2F2F2) else Color(0xFFCBB9FF)
-    val SkyBlue get() = if (mono) Color(0xFFBDBDBD) else Color(0xFF8FCBFF)
-    val Rose get() = if (mono) Color(0xFF8C8C8C) else Color(0xFFFF9FC8)
-    val Peach get() = if (mono) Color(0xFFDADADA) else Color(0xFFFFC4A6)
+    // Monochrome: every accent (ring bars, buttons, sliders, progress) is pure white.
+    val Lavender get() = if (mono) Color.White else Color(0xFFCBB9FF)
+    val SkyBlue get() = if (mono) Color.White else Color(0xFF8FCBFF)
+    val Rose get() = if (mono) Color.White else Color(0xFFFF9FC8)
+    val Peach get() = if (mono) Color.White else Color(0xFFFFC4A6)
 
     val Text get() = if (mono) Color.White else Color(0xFFF5F2FF)
     val TextDim get() = if (mono) Color(0xFFB3B3B3) else Color(0xFFC9C3E6)
