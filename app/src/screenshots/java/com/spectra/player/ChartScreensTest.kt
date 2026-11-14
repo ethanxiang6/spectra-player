@@ -144,6 +144,22 @@ class ChartScreensTest {
         )
     }
 
+    @Test fun playlist_search() = shot("playlist_search") {
+        PlaylistContent(
+            title = "Late Night Drive",
+            coverUrl = null,
+            owner = "Ethan",
+            trackCount = 42,
+            state = ListState(songs, nextOffset = null),
+            playback = playback(),
+            artwork = null,
+            onBack = {}, onOpenNowPlaying = {}, onPlayAll = {}, onPlay = { _, _ -> }, onQueue = {},
+            onLoadMore = {}, onTogglePlay = {}, onNext = {},
+            initialSearch = "he",
+            autoFocus = false,
+        )
+    }
+
     @Test fun search() = shot("search") {
         SearchContent(
             query = "past lives",
