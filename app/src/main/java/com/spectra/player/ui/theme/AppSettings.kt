@@ -10,8 +10,8 @@ import kotlinx.coroutines.flow.asStateFlow
 data class AppSettings(
     val theme: Backdrop = Backdrop.EVENING,
     val stars: Boolean = true,
-    /** Launcher icon theme. */
-    val icon: Backdrop = Backdrop.EVENING,
+    /** Launcher icon: an [AppIcons.Icon.alias] such as "Evening" or "Monochrome". */
+    val icon: String = AppIcons.DEFAULT,
     /** Black and white everywhere, on true black (AMOLED). Overrides the theme while on. */
     val monochrome: Boolean = false,
 ) {
@@ -32,7 +32,7 @@ class AppPrefs(context: Context) {
         prefs.edit()
             .putString(KEY_THEME, next.theme.name)
             .putBoolean(KEY_STARS, next.stars)
-            .putString(KEY_ICON, next.icon.name)
+            .putString(KEY_ICON, next.icon)
             .putBoolean(KEY_MONO, next.monochrome)
             .apply()
     }
@@ -41,8 +41,7 @@ class AppPrefs(context: Context) {
         val d = AppSettings()
         val theme = prefs.getString(KEY_THEME, null)
             ?.let { name -> AppSettings.themes.firstOrNull { it.name == name } } ?: d.theme
-        val icon = prefs.getString(KEY_ICON, null)
-            ?.let { name -> AppSettings.themes.firstOrNull { it.name == name } } ?: d.icon
+        val icon = AppIcons.find(prefs.getString(KEY_ICON, null) ?: d.icon).alias
         return AppSettings(
             theme = theme,
             stars = prefs.getBoolean(KEY_STARS, d.stars),

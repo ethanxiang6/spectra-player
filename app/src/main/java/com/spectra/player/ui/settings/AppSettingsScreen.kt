@@ -88,7 +88,7 @@ fun AppSettingsContent(
     profile: UserProfile?,
     premium: PremiumStatus,
     onUpdate: ((AppSettings) -> AppSettings) -> Unit,
-    onIcon: (Backdrop) -> Unit,
+    onIcon: (String) -> Unit,
     onSignOut: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -160,10 +160,10 @@ fun AppSettingsContent(
                 items(AppIcons.all, key = { it.alias }) { icon ->
                     IconChoice(
                         icon = icon,
-                        selected = icon.theme == settings.icon,
+                        selected = icon.alias == settings.icon,
                         onClick = {
-                            onUpdate { it.copy(icon = icon.theme) }
-                            onIcon(icon.theme)
+                            onUpdate { it.copy(icon = icon.alias) }
+                            onIcon(icon.alias)
                         },
                     )
                 }

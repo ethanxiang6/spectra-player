@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -213,7 +212,7 @@ fun LibraryContent(
                     ChartRule(
                         "Playlists",
                         meta = (playlists.total ?: playlists.items.size).takeIf { playlists.items.isNotEmpty() }?.toString(),
-                        modifier = Modifier.padding(top = 30.dp),
+                        modifier = Modifier.padding(top = 26.dp),
                     )
                 }
                 item(key = "playlists") {
@@ -279,9 +278,10 @@ private fun ChartHeader(
     onSettings: () -> Unit,
     onSignOut: () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().statusBarsPadding()) {
+    // No status-bar padding here: the Scaffold already keeps the page below the status bar.
+    Column(Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 10.dp, top = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 10.dp, top = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -299,7 +299,7 @@ private fun ChartHeader(
             color = Chart.ink,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp),
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp),
         )
         val counts = listOfNotNull(
             playlistCount?.let { if (it == 1) "1 playlist" else "$it playlists" },
@@ -315,7 +315,7 @@ private fun ChartHeader(
         }
         Row(
             modifier = Modifier
-                .padding(start = 20.dp, end = 20.dp, top = 22.dp)
+                .padding(start = 20.dp, end = 20.dp, top = 16.dp)
                 .fillMaxWidth()
                 .clickable(onClickLabel = "Search", onClick = onSearch)
                 .dottedUnderline(Chart.line)
