@@ -19,7 +19,14 @@ class NowPlayingViewModel(
     private val visualizer: VisualizerController,
     private val prefs: VisualizerPrefs,
     private val lyricsRepo: com.spectra.player.data.lyrics.LyricsRepository,
+    private val appPrefs: com.spectra.player.ui.theme.AppPrefs,
 ) : ViewModel() {
+
+    /** App-wide monochrome (also in App settings); the visualizer's gear panel has the same switch. */
+    val monochrome: StateFlow<Boolean> = appPrefs.settings.map { it.monochrome }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, appPrefs.settings.value.monochrome)
+    fun setMonochrome(on: Boolean) = appPrefs.update { it.copy(monochrome = on) }
+
 
     val settings: StateFlow<VisualizerSettings> = prefs.settings
     fun updateSettings(transform: (VisualizerSettings) -> VisualizerSettings) = prefs.update(transform)

@@ -125,6 +125,7 @@ fun NowPlayingScreen(
     val spectrum = viewModel.spectrum.collectAsStateWithLifecycle() // read only while drawing
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val lyrics by viewModel.lyrics.collectAsStateWithLifecycle()
+    val monochrome by viewModel.monochrome.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     var micGranted by remember { mutableStateOf(context.hasRecordAudioPermission()) }
@@ -333,6 +334,8 @@ fun NowPlayingScreen(
                 }
             },
             onDismiss = { settingsOpen = false; touched() },
+            monochrome = monochrome,
+            onMonochromeChange = viewModel::setMonochrome,
             onPlayIntro = {
                 settingsOpen = false
                 controlsVisible = false

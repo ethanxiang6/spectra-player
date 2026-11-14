@@ -59,6 +59,8 @@ fun VisualizerSettingsSheet(
     onLiveChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
     onPlayIntro: () -> Unit,
+    monochrome: Boolean,
+    onMonochromeChange: (Boolean) -> Unit,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -86,6 +88,13 @@ fun VisualizerSettingsSheet(
             }
             item(key = "backdrop") {
                 SectionTitle("Background")
+                SwitchRow("Monochrome (whole app, true black)", monochrome, onMonochromeChange)
+                Text(
+                    if (monochrome) "Black and white everywhere. The background below is used again when it's off."
+                    else "Turns the whole app black and white: white bars, buttons and stars on true black, black and white album art.",
+                    style = TextStyle(color = Dusk.TextDim, fontSize = 13.sp, lineHeight = 18.sp),
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+                )
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
