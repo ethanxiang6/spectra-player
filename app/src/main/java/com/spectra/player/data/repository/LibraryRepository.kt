@@ -24,6 +24,8 @@ class LibraryRepository(
         /** Offset to request next, or null at the end of the list. */
         val nextOffset: Int?,
         val fromCache: Boolean = false,
+        /** Size of the whole list on Spotify, when known. */
+        val total: Int? = null,
     )
 
     private val profiles = ConcurrentHashMap<String, AudioProfile>()
@@ -38,7 +40,7 @@ class LibraryRepository(
         val page = api.savedTracks(PAGE_SIZE, offset)
         val items = page.items.mapNotNull { it.track?.toDomain() }
         cache.writeSavedTracks(offset, items)
-        Page(items, nextOffsetOf(page.next, offset, page.items.size))
+        Page(items, nextOffsetOf(page.next, offset, page.items.size), total = page.total)
     } catch (e: IOException) {
         val cached = if (offset == 0) cache.savedTracks() else emptyList()
         if (cached.isNotEmpty()) Page(cached, nextOffset = null, fromCache = true) else throw e
@@ -48,7 +50,7 @@ class LibraryRepository(
         val page = api.playlists(PAGE_SIZE, offset)
         val items = page.items.map { it.toDomain() }
         cache.writePlaylists(offset, items)
-        Page(items, nextOffsetOf(page.next, offset, page.items.size))
+        Page(items, nextOffsetOf(page.next, offset, page.items.size), total = page.total)
     } catch (e: IOException) {
         val cached = if (offset == 0) cache.playlists() else emptyList()
         if (cached.isNotEmpty()) Page(cached, nextOffset = null, fromCache = true) else throw e
@@ -57,7 +59,7 @@ class LibraryRepository(
     suspend fun playlistTracks(playlistId: String, offset: Int): Page<Track> {
         val page = api.playlistItems(playlistId, PAGE_SIZE, offset)
         val items = page.items.mapNotNull { (it.item ?: it.track)?.toDomain() }
-        return Page(items, nextOffsetOf(page.next, offset, page.items.size))
+        return Page(items, nextOffsetOf(page.next, offset, page.items.size), total = page.total)
     }
 
     /** Songs from the whole catalogue, not only the user's library. */

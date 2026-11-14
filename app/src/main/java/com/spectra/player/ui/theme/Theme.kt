@@ -10,6 +10,7 @@ import com.spectra.player.ui.nowplaying.look
 import com.spectra.player.visualizer.Backdrop
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
@@ -50,21 +51,22 @@ private val SpectraDarkColors = darkColorScheme(
 )
 
 private val SpectraTypography = Typography(
-    // Serif display: page titles and section headings.
-    displaySmall = TextStyle(fontFamily = AppFonts.Display, fontSize = 44.sp, lineHeight = 48.sp),
-    headlineLarge = TextStyle(fontFamily = AppFonts.Display, fontSize = 38.sp, lineHeight = 42.sp),
-    headlineMedium = TextStyle(fontFamily = AppFonts.Display, fontSize = 30.sp, lineHeight = 34.sp),
-    headlineSmall = TextStyle(fontFamily = AppFonts.Display, fontSize = 25.sp, lineHeight = 30.sp),
-    // Sans for everything you read or tap.
+    // Italic serif, like the constellation names on an atlas: page titles and playlist names.
+    displaySmall = TextStyle(fontFamily = AppFonts.Display, fontWeight = FontWeight.Medium, fontStyle = FontStyle.Italic, fontSize = 46.sp, lineHeight = 48.sp),
+    headlineLarge = TextStyle(fontFamily = AppFonts.Display, fontWeight = FontWeight.Medium, fontStyle = FontStyle.Italic, fontSize = 40.sp, lineHeight = 42.sp),
+    headlineMedium = TextStyle(fontFamily = AppFonts.Display, fontWeight = FontWeight.Medium, fontStyle = FontStyle.Italic, fontSize = 32.sp, lineHeight = 36.sp),
+    headlineSmall = TextStyle(fontFamily = AppFonts.Display, fontWeight = FontWeight.Medium, fontStyle = FontStyle.Italic, fontSize = 24.sp, lineHeight = 28.sp),
+    // Plex Sans for everything you read.
     titleLarge = TextStyle(fontFamily = AppFonts.Sans, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, lineHeight = 26.sp),
-    titleMedium = TextStyle(fontFamily = AppFonts.Sans, fontWeight = FontWeight.Medium, fontSize = 16.sp, lineHeight = 22.sp),
+    titleMedium = TextStyle(fontFamily = AppFonts.Sans, fontWeight = FontWeight.Medium, fontSize = 16.sp, lineHeight = 21.sp),
     titleSmall = TextStyle(fontFamily = AppFonts.Sans, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp),
     bodyLarge = TextStyle(fontFamily = AppFonts.Sans, fontSize = 16.sp, lineHeight = 24.sp),
     bodyMedium = TextStyle(fontFamily = AppFonts.Sans, fontSize = 14.sp, lineHeight = 20.sp),
     bodySmall = TextStyle(fontFamily = AppFonts.Sans, fontSize = 12.sp, lineHeight = 16.sp),
-    labelLarge = TextStyle(fontFamily = AppFonts.Sans, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp),
-    labelMedium = TextStyle(fontFamily = AppFonts.Sans, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp),
-    labelSmall = TextStyle(fontFamily = AppFonts.Sans, fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 16.sp),
+    // Plex Mono, tracked out, for labels and buttons: the catalogue voice.
+    labelLarge = TextStyle(fontFamily = AppFonts.Mono, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 18.sp, letterSpacing = 1.2.sp),
+    labelMedium = TextStyle(fontFamily = AppFonts.Mono, fontWeight = FontWeight.Normal, fontSize = 11.sp, lineHeight = 16.sp, letterSpacing = 1.4.sp),
+    labelSmall = TextStyle(fontFamily = AppFonts.Mono, fontWeight = FontWeight.Normal, fontSize = 10.sp, lineHeight = 14.sp, letterSpacing = 1.2.sp),
 )
 
 @Composable

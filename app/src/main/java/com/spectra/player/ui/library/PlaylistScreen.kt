@@ -1,26 +1,19 @@
 package com.spectra.player.ui.library
 
-import androidx.compose.foundation.layout.fillMaxWidth
-
-import androidx.compose.foundation.layout.Column
-
-import androidx.compose.foundation.layout.size
-
-import androidx.compose.ui.Alignment
-
-import androidx.compose.material.icons.rounded.Shuffle
-
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,19 +21,25 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.spectra.player.data.Track
+import com.spectra.player.player.PlaybackState
+import com.spectra.player.ui.chart.Chart
+import com.spectra.player.ui.chart.ChartButton
+import com.spectra.player.ui.chart.ChartRule
+import com.spectra.player.ui.chart.plateMarks
+import com.spectra.player.ui.components.CoverArt
 import com.spectra.player.ui.components.MiniPlayer
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistScreen(
     viewModel: PlaylistViewModel,
@@ -53,61 +52,99 @@ fun PlaylistScreen(
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
 
+    PlaylistContent(
+        title = viewModel.title,
+        coverUrl = viewModel.coverUrl,
+        owner = viewModel.owner,
+        trackCount = viewModel.trackCount,
+        state = state,
+        playback = playback,
+        artwork = artwork,
+        snackbar = snackbar,
+        onBack = onBack,
+        onOpenNowPlaying = onOpenNowPlaying,
+        onPlayAll = viewModel::playFromStart,
+        onPlay = viewModel::play,
+        onQueue = viewModel::queue,
+        onLoadMore = viewModel::loadMore,
+        onTogglePlay = viewModel::togglePlayPause,
+        onNext = viewModel::skipNext,
+    )
+}
+
+@Composable
+fun PlaylistContent(
+    title: String,
+    coverUrl: String?,
+    owner: String,
+    trackCount: Int?,
+    state: ListState<Track>,
+    playback: PlaybackState,
+    artwork: ImageBitmap?,
+    onBack: () -> Unit,
+    onOpenNowPlaying: () -> Unit,
+    onPlayAll: (shuffle: Boolean) -> Unit,
+    onPlay: (Int, Track) -> Unit,
+    onQueue: (Track) -> Unit,
+    onLoadMore: () -> Unit,
+    onTogglePlay: () -> Unit,
+    onNext: () -> Unit,
+    snackbar: SnackbarHostState = remember { SnackbarHostState() },
+) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = {},
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-            )
+            Row(
+                Modifier.statusBarsPadding().padding(start = 4.dp, top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = Chart.ink)
+                }
+                Text("PLAYLIST", style = MaterialTheme.typography.labelMedium, color = Chart.dim)
+            }
         },
         bottomBar = {
             MiniPlayer(
                 playback = playback,
                 artwork = artwork,
                 onOpen = onOpenNowPlaying,
-                onTogglePlay = viewModel::togglePlayPause,
-                onNext = viewModel::skipNext,
+                onTogglePlay = onTogglePlay,
+                onNext = onNext,
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         LazyColumn(
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp),
+            contentPadding = PaddingValues(bottom = 16.dp),
             modifier = Modifier.padding(padding).fillMaxSize(),
         ) {
             item(key = "header") {
                 PlaylistHeader(
-                    title = viewModel.title,
-                    coverUrl = viewModel.coverUrl,
-                    owner = viewModel.owner,
-                    trackCount = viewModel.trackCount,
-                    onPlay = { viewModel.playFromStart(shuffle = false) },
-                    onShuffle = { viewModel.playFromStart(shuffle = true) },
+                    title = title,
+                    coverUrl = coverUrl,
+                    owner = owner,
+                    trackCount = trackCount,
+                    enabled = state.items.isNotEmpty(),
+                    onPlay = { onPlayAll(false) },
+                    onShuffle = { onPlayAll(true) },
                 )
             }
             if (state.items.isEmpty() && state.loading) {
                 item(key = "loading") { LoadingFooter() }
             } else if (state.items.isEmpty() && state.error != null) {
-                item(key = "error-empty") { ErrorRow(state.error!!, onRetry = viewModel::loadMore) }
+                item(key = "error-empty") { ErrorRow(state.error, onRetry = onLoadMore) }
             } else if (state.items.isEmpty() && state.nextOffset == null) {
                 item(key = "empty") {
                     Text(
                         "This playlist has no songs yet.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(16.dp),
+                        color = Chart.dim,
+                        modifier = Modifier.padding(20.dp),
                     )
                 }
             } else {
-                trackItems(state, playback, viewModel::loadMore, viewModel::play, viewModel::queue)
+                trackItems(state, playback, onLoadMore, onPlay, onQueue)
             }
         }
     }
@@ -119,51 +156,47 @@ private fun PlaylistHeader(
     coverUrl: String?,
     owner: String,
     trackCount: Int?,
+    enabled: Boolean,
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, bottom = 12.dp)) {
-        com.spectra.player.ui.components.CoverArt(
+    Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+        // The cover as a photographic plate, with registration marks at the corners.
+        CoverArt(
             url = coverUrl,
-            modifier = Modifier.size(208.dp),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .padding(start = 28.dp, top = 18.dp)
+                .plateMarks(Chart.line)
+                .size(176.dp),
+            shape = Chart.corner,
         )
-        androidx.compose.foundation.layout.Spacer(Modifier.size(20.dp))
         Text(
             title,
             style = MaterialTheme.typography.headlineLarge,
+            color = Chart.ink,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 26.dp),
         )
-        if (owner.isNotBlank()) {
+        val meta = listOfNotNull(
+            owner.takeIf { it.isNotBlank() }?.let { "by $it" },
+            trackCount?.let { if (it == 1) "1 song" else "$it songs" },
+        )
+        if (meta.isNotEmpty()) {
             Text(
-                "By $owner",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
+                meta.joinToString("  ·  ").uppercase(),
+                style = MaterialTheme.typography.labelMedium,
+                color = Chart.dim,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 6.dp),
             )
         }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 20.dp, top = 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(
-                when (trackCount) {
-                    null -> ""
-                    1 -> "1 song"
-                    else -> "$trackCount songs"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
-            )
-            IconButton(onClick = onShuffle) {
-                Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle playlist")
-            }
-            androidx.compose.foundation.layout.Spacer(Modifier.size(4.dp))
-            androidx.compose.material3.FilledIconButton(onClick = onPlay, modifier = Modifier.size(56.dp)) {
-                Icon(Icons.Rounded.PlayArrow, contentDescription = "Play playlist", modifier = Modifier.size(32.dp))
-            }
+            ChartButton("Play", onClick = onPlay, icon = Icons.Rounded.PlayArrow, filled = true, enabled = enabled)
+            ChartButton("Shuffle", onClick = onShuffle, icon = Icons.Rounded.Shuffle, enabled = enabled)
         }
+        ChartRule("Songs", modifier = Modifier.padding(top = 26.dp, bottom = 4.dp))
     }
 }

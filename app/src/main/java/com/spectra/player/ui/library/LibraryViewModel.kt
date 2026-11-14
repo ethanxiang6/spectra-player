@@ -31,6 +31,8 @@ data class ListState<T>(
     val nextOffset: Int? = 0,
     val error: String? = null,
     val fromCache: Boolean = false,
+    /** Size of the whole list on Spotify, when known. */
+    val total: Int? = null,
 )
 
 class LibraryViewModel(
@@ -87,6 +89,7 @@ class LibraryViewModel(
                         nextOffset = page.nextOffset,
                         loading = false,
                         fromCache = page.fromCache,
+                        total = page.total ?: it.total,
                     )
                 }
                 refreshCachedTracks()
@@ -112,6 +115,7 @@ class LibraryViewModel(
                         nextOffset = page.nextOffset,
                         loading = false,
                         fromCache = page.fromCache,
+                        total = page.total ?: it.total,
                     )
                 }
             } catch (e: CancellationException) {

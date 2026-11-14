@@ -25,7 +25,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 2
-        versionName = "1.10.2"
+        versionName = "1.11.0"
 
         buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"$spotifyClientId\"")
         buildConfigField("String", "SPOTIFY_REDIRECT_URI", "\"spectra://callback\"")
@@ -119,4 +119,11 @@ dependencies {
 
     // --- Tests ---
     testImplementation(libs.junit)
+}
+
+// Screenshot tests of the app pages (Paparazzi). Only with -Pscreenshots, so the normal build and
+// unit tests never depend on it. Run: ./gradlew -Pscreenshots :app:recordPaparazziDebug
+if (providers.gradleProperty("screenshots").isPresent) {
+    apply(plugin = "app.cash.paparazzi")
+    android.sourceSets.getByName("test").java.srcDir("src/screenshots/java")
 }
