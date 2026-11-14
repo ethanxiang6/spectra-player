@@ -70,14 +70,52 @@ private val SpectraTypography = Typography(
 @Composable
 fun SpectraTheme(
     theme: Backdrop? = null,
+    monochrome: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     MaterialTheme(
-        colorScheme = theme?.let { remember(it) { schemeFor(it) } } ?: SpectraDarkColors,
+        colorScheme = when {
+            monochrome -> MonochromeColors
+            theme != null -> remember(theme) { schemeFor(theme) }
+            else -> SpectraDarkColors
+        },
         typography = SpectraTypography,
         content = content,
     )
 }
+
+/** Black and white on true black, for AMOLED screens. Background stays transparent for the sky. */
+private val MonochromeColors = darkColorScheme(
+    primary = Color.White,
+    onPrimary = Color.Black,
+    primaryContainer = Color(0xFF2A2A2A),
+    onPrimaryContainer = Color.White,
+    secondary = Color(0xFFBDBDBD),
+    onSecondary = Color.Black,
+    secondaryContainer = Color(0xFF262626),
+    onSecondaryContainer = Color.White,
+    tertiary = Color(0xFFE0E0E0),
+    onTertiary = Color.Black,
+    tertiaryContainer = Color(0xFF2A2A2A),
+    onTertiaryContainer = Color.White,
+    background = Color.Transparent,
+    onBackground = Color.White,
+    surface = Color(0xFF0A0A0A),
+    onSurface = Color.White,
+    surfaceVariant = Color(0xFF1E1E1E),
+    onSurfaceVariant = Color(0xFFB3B3B3),
+    surfaceContainerLowest = Color.Black,
+    surfaceContainerLow = Color(0xFF0A0A0A),
+    surfaceContainer = Color(0xFF121212),
+    surfaceContainerHigh = Color(0xFF1A1A1A),
+    surfaceContainerHighest = Color(0xFF222222),
+    outline = Color(0xFF6E6E6E),
+    outlineVariant = Color(0xFF2E2E2E),
+    error = Color(0xFFE6E6E6),
+    onError = Color.Black,
+    errorContainer = Color(0xFF2A2A2A),
+    onErrorContainer = Color.White,
+)
 
 /**
  * Dark scheme taken from a sky theme: accents from its ring colours, surfaces tinted with its

@@ -91,6 +91,7 @@ fun MiniPlayer(
                         bitmap = artwork,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
+                        colorFilter = Dusk.artFilter,
                         modifier = Modifier.fillMaxSize(),
                     )
                     track.imageUrl != null -> ArtImage(

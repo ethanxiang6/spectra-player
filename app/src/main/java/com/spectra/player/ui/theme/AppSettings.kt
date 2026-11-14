@@ -12,6 +12,8 @@ data class AppSettings(
     val stars: Boolean = true,
     /** Launcher icon theme. */
     val icon: Backdrop = Backdrop.EVENING,
+    /** Black and white everywhere, on true black (AMOLED). Overrides the theme while on. */
+    val monochrome: Boolean = false,
 ) {
     companion object {
         /** Album art only makes sense on the visualizer. */
@@ -31,6 +33,7 @@ class AppPrefs(context: Context) {
             .putString(KEY_THEME, next.theme.name)
             .putBoolean(KEY_STARS, next.stars)
             .putString(KEY_ICON, next.icon.name)
+            .putBoolean(KEY_MONO, next.monochrome)
             .apply()
     }
 
@@ -40,12 +43,18 @@ class AppPrefs(context: Context) {
             ?.let { name -> AppSettings.themes.firstOrNull { it.name == name } } ?: d.theme
         val icon = prefs.getString(KEY_ICON, null)
             ?.let { name -> AppSettings.themes.firstOrNull { it.name == name } } ?: d.icon
-        return AppSettings(theme = theme, stars = prefs.getBoolean(KEY_STARS, d.stars), icon = icon)
+        return AppSettings(
+            theme = theme,
+            stars = prefs.getBoolean(KEY_STARS, d.stars),
+            icon = icon,
+            monochrome = prefs.getBoolean(KEY_MONO, d.monochrome),
+        )
     }
 
     private companion object {
         const val KEY_THEME = "theme"
         const val KEY_STARS = "stars"
         const val KEY_ICON = "icon"
+        const val KEY_MONO = "monochrome"
     }
 }

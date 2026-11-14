@@ -112,6 +112,17 @@ fun AppSettingsScreen(
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp),
             )
             Heading("Theme")
+            SwitchRow("Monochrome (true black for AMOLED)", settings.monochrome) { on ->
+                prefs.update { it.copy(monochrome = on) }
+            }
+            if (settings.monochrome) {
+                Text(
+                    "Black and white everywhere, including the visualizer and album covers. Turn it off to use the themes below.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+                )
+            }
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),

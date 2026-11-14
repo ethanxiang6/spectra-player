@@ -97,6 +97,7 @@ import com.spectra.player.ui.image.ArtImage
 import com.spectra.player.data.formatTime
 import com.spectra.player.player.NowPlayingTrack
 import com.spectra.player.player.PlaybackState
+import com.spectra.player.visualizer.Backdrop
 import com.spectra.player.visualizer.RadialSpectrumVisualizer
 import com.spectra.player.visualizer.VisualizerMode
 import com.spectra.player.visualizer.VisualizerStyle
@@ -234,7 +235,7 @@ fun NowPlayingScreen(
             },
     ) {
         SkyBackdrop(
-            backdrop = settings.backdrop,
+            backdrop = if (Dusk.mono) Backdrop.BLACK else settings.backdrop,
             showStars = settings.stars,
             artwork = artwork,
             imageUrl = playback.track?.imageUrl,
@@ -256,7 +257,7 @@ fun NowPlayingScreen(
                 onStyleChange = { next -> viewModel.updateSettings { it.copy(style = next) } },
                 modifier = Modifier.fillMaxWidth(0.94f),
                 innerRadiusFraction = ART_FRACTION,
-                colors = settings.backdrop.look().ring,
+                colors = (if (Dusk.mono) Backdrop.BLACK else settings.backdrop).look().ring,
                 interactive = false,
                 glow = true,
                 mirrored = mode != VisualizerMode.LIVE,
@@ -355,6 +356,7 @@ private fun AlbumDisc(artwork: ImageBitmap?, imageUrl: String?, modifier: Modifi
                 bitmap = artwork,
                 contentDescription = "Album art",
                 contentScale = ContentScale.Crop,
+                colorFilter = Dusk.artFilter,
                 modifier = Modifier.fillMaxSize(),
             )
             imageUrl != null -> ArtImage(

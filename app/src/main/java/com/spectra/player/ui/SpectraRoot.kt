@@ -69,7 +69,7 @@ fun SpectraRoot(container: AppContainer, onLogin: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
         // The chosen sky, drawn once behind every screen (static: no animation outside the visualizer).
         SkyBackdrop(
-            backdrop = appSettings.theme,
+            backdrop = if (appSettings.monochrome) com.spectra.player.visualizer.Backdrop.BLACK else appSettings.theme,
             showStars = appSettings.stars,
             artwork = null,
             imageUrl = null,

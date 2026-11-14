@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithCache
@@ -29,23 +32,37 @@ import kotlin.random.Random
 
 /** Colours of the visualizer screen: a clear evening sky, darkest overhead, lighter at the horizon. */
 object Dusk {
-    val SkyTop = Color(0xFF03051A)
-    val SkyUpper = Color(0xFF0A0F33)
-    val SkyMid = Color(0xFF1B1A4B)
-    val SkyLow = Color(0xFF34295F)
-    val Horizon = Color(0xFF574170)
-    val Haze = Color(0xFFE9A08E)
+    /**
+     * Monochrome mode (App settings): true black for AMOLED screens, white and grey everywhere
+     * else. It's Compose state, so every colour below switches live when it changes.
+     */
+    var mono by mutableStateOf(false)
 
-    val Lavender = Color(0xFFCBB9FF)
-    val SkyBlue = Color(0xFF8FCBFF)
-    val Rose = Color(0xFFFF9FC8)
-    val Peach = Color(0xFFFFC4A6)
+    val SkyTop get() = if (mono) Color.Black else Color(0xFF03051A)
+    val SkyUpper get() = if (mono) Color.Black else Color(0xFF0A0F33)
+    val SkyMid get() = if (mono) Color(0xFF1A1A1A) else Color(0xFF1B1A4B)
+    val SkyLow get() = if (mono) Color.Black else Color(0xFF34295F)
+    val Horizon get() = if (mono) Color.Black else Color(0xFF574170)
+    val Haze get() = if (mono) Color.White else Color(0xFFE9A08E)
 
-    val Text = Color(0xFFF5F2FF)
-    val TextDim = Color(0xFFC9C3E6)
+    val Lavender get() = if (mono) Color(0xFFF2F2F2) else Color(0xFFCBB9FF)
+    val SkyBlue get() = if (mono) Color(0xFFBDBDBD) else Color(0xFF8FCBFF)
+    val Rose get() = if (mono) Color(0xFF8C8C8C) else Color(0xFFFF9FC8)
+    val Peach get() = if (mono) Color(0xFFDADADA) else Color(0xFFFFC4A6)
+
+    val Text get() = if (mono) Color.White else Color(0xFFF5F2FF)
+    val TextDim get() = if (mono) Color(0xFFB3B3B3) else Color(0xFFC9C3E6)
 
     /** Sweep around the ring: cool at the top, warm toward the horizon side. */
-    val ring = listOf(Lavender, SkyBlue, Rose, Peach, Lavender)
+    val ring get() = listOf(Lavender, SkyBlue, Rose, Peach, Lavender)
+
+    /** Album art in black and white while monochrome is on. */
+    val artFilter: androidx.compose.ui.graphics.ColorFilter?
+        get() = if (mono) GrayscaleFilter else null
+
+    private val GrayscaleFilter = androidx.compose.ui.graphics.ColorFilter.colorMatrix(
+        androidx.compose.ui.graphics.ColorMatrix().apply { setToSaturation(0f) },
+    )
 }
 
 private class Star(
@@ -141,7 +158,7 @@ fun SkyBackdrop(
                 .graphicsLayer { scaleX = 1.3f; scaleY = 1.3f }
                 .blur(60.dp)
             when {
-                artwork != null -> Image(artwork, null, contentScale = ContentScale.Crop, modifier = blurred)
+                artwork != null -> Image(artwork, null, contentScale = ContentScale.Crop, colorFilter = Dusk.artFilter, modifier = blurred)
                 imageUrl != null -> ArtImage(url = imageUrl, contentDescription = null, modifier = blurred)
             }
             Spacer(

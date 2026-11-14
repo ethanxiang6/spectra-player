@@ -106,6 +106,7 @@ fun ArtImage(
         contentDescription = contentDescription,
         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
         alignment = androidx.compose.ui.Alignment.Center,
+        colorFilter = com.spectra.player.ui.nowplaying.Dusk.artFilter,
         modifier = modifier,
     )
 }

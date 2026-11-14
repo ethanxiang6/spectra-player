@@ -30,7 +30,10 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val appSettings by container.appPrefs.settings.collectAsState()
-            SpectraTheme(theme = appSettings.theme) {
+            androidx.compose.runtime.SideEffect {
+                com.spectra.player.ui.nowplaying.Dusk.mono = appSettings.monochrome
+            }
+            SpectraTheme(theme = appSettings.theme, monochrome = appSettings.monochrome) {
                 SpectraRoot(
                     container = container,
                     onLogin = { container.authManager.launchLogin(this) },

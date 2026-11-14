@@ -46,7 +46,7 @@ import com.spectra.player.visualizer.VisualizerMode
 import com.spectra.player.visualizer.VisualizerSettings
 import com.spectra.player.visualizer.VisualizerStyle
 
-private val SheetColor = Color(0xFF14122B)
+private val SheetColor get() = if (Dusk.mono) Color.Black else Color(0xFF14122B)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
