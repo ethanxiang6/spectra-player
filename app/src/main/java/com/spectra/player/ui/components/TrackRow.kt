@@ -58,7 +58,7 @@ fun TrackRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(start = 14.dp, end = if (onAddToQueue != null) 2.dp else 20.dp, top = 9.dp, bottom = 9.dp),
+            .padding(start = 14.dp, end = if (onAddToQueue != null) 2.dp else 20.dp, top = 7.dp, bottom = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (number != null) {

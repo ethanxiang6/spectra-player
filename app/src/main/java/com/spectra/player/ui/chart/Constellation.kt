@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
@@ -22,6 +23,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntOffset
@@ -54,6 +56,8 @@ private class Placed(
     val labelY: Float,
     val labelWidth: Float,
     val group: Int,
+    /** Label sits to the left of the star, right-aligned (every other constellation). */
+    val labelLeft: Boolean,
 )
 
 private class MapLayout(val stars: List<Placed>, val height: Float, val fieldStars: List<Triple<Float, Float, Float>>)
@@ -160,7 +164,8 @@ fun ConstellationMap(
                         .offset { IntOffset(p.labelX.roundToInt(), p.labelY.roundToInt()) }
                         .width(with(density) { p.labelWidth.toDp() } + 8.dp)
                         .clickable(role = Role.Button, onClickLabel = "Open ${star.name}") { onTap(i) }
-                        .padding(end = 8.dp),
+                        .padding(start = if (p.labelLeft) 8.dp else 0.dp, end = if (p.labelLeft) 0.dp else 8.dp),
+                    horizontalAlignment = if (p.labelLeft) Alignment.End else Alignment.Start,
                 ) {
                     Text(
                         star.name,
@@ -168,6 +173,7 @@ fun ConstellationMap(
                         color = if (star.pole) accent else ink,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        textAlign = if (p.labelLeft) TextAlign.End else TextAlign.Start,
                     )
                     if (star.meta != null) {
                         Text(star.meta.uppercase(), style = metaStyle, color = dim, maxLines = 1)
@@ -218,12 +224,16 @@ private fun layoutMap(
             leftInGroup = 3 + rnd.nextInt(3)
         }
         val labelW = measure(star.name, star.meta).coerceAtMost(width * 0.66f)
-        val xMax = (width - right - labelW - gap).coerceAtLeast(left)
+        // Every other constellation hangs its labels on the left, so the map spreads across
+        // the whole width instead of piling up on one side.
+        val labelLeft = group % 2 == 0 && left + labelW + gap + 8.dp.toPx() < width - right - 10.dp.toPx()
+        val xMin = if (labelLeft) left + labelW + gap + 8.dp.toPx() else left
+        val xMax = if (labelLeft) width - right - 10.dp.toPx() else (width - right - labelW - gap - 8.dp.toPx()).coerceAtLeast(left)
         val startOfGroup = placed.isEmpty() || placed.last().group != group
         val x = if (startOfGroup) {
-            left + rnd.nextFloat() * (xMax - left)
+            xMin + rnd.nextFloat() * (xMax - xMin)
         } else {
-            (prevX + (rnd.nextFloat() * 2f - 1f) * maxStep).coerceIn(left, xMax)
+            (prevX + (rnd.nextFloat() * 2f - 1f) * maxStep).coerceIn(xMin, xMax)
         }
         val y = top + i * rowH + (rnd.nextFloat() - 0.5f) * 14.dp.toPx() + (if (startOfGroup && i > 0) 6.dp.toPx() else 0f)
         val magnitude = (log10(star.weight + 1f) / log10(maxWeight + 1f)).coerceIn(0f, 1f)
@@ -232,10 +242,11 @@ private fun layoutMap(
             x = x,
             y = y,
             radius = radius,
-            labelX = x + gap,
+            labelX = if (labelLeft) x - gap - labelW - 8.dp.toPx() else x + gap,
             labelY = y - nameHalf,
             labelWidth = labelW,
             group = group,
+            labelLeft = labelLeft,
         )
         prevX = x
         leftInGroup--

@@ -184,7 +184,7 @@ private fun PlaylistHeader(
         )
         if (meta.isNotEmpty()) {
             Text(
-                meta.joinToString("  ·  ").uppercase(),
+                meta.joinToString(" · ").uppercase(),
                 style = MaterialTheme.typography.labelMedium,
                 color = Chart.dim,
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 6.dp),

@@ -164,7 +164,7 @@ fun ChartRule(
         Text(label.uppercase(), style = MaterialTheme.typography.labelLarge, color = Chart.ink)
         if (meta != null) {
             Text(
-                "  ·  $meta",
+                " · $meta",
                 style = MaterialTheme.typography.labelLarge,
                 color = Chart.dim,
             )
