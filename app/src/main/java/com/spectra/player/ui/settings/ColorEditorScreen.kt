@@ -156,6 +156,18 @@ fun ColorEditorContent(
 
             PalettePreview(palette, Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
 
+            val warnings = remember(palette) { palette.warnings() }
+            if (warnings.isNotEmpty()) {
+                ChartNote(
+                    heading = "Colours too close",
+                    body = warnings.keys.joinToString(", ") { it.label } +
+                        (if (warnings.size == 1) " is" else " are") +
+                        " close to the sky colour and will be hard to see. You can keep them, or pick something lighter or darker.",
+                    tone = MaterialTheme.colorScheme.error,
+                    extra = { Spacer(Modifier.height(6.dp)) },
+                )
+            }
+
             ChartRule("Colours", modifier = Modifier.padding(top = 22.dp, bottom = 6.dp))
             CustomPalette.Slot.entries.forEach { slot ->
                 val color = slot.get(palette)
@@ -164,6 +176,7 @@ fun ColorEditorContent(
                     color = color,
                     open = open == slot,
                     onToggle = { open = if (open == slot) null else slot },
+                    warning = warnings[slot],
                 )
                 if (open == slot) {
                     androidx.compose.runtime.key(slot) {
@@ -315,7 +328,7 @@ private fun IconPreview(p: CustomPalette, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun SlotRow(slot: CustomPalette.Slot, color: Int, open: Boolean, onToggle: () -> Unit) {
+private fun SlotRow(slot: CustomPalette.Slot, color: Int, open: Boolean, onToggle: () -> Unit, warning: String? = null) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -332,7 +345,11 @@ private fun SlotRow(slot: CustomPalette.Slot, color: Int, open: Boolean, onToggl
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(slot.label, style = MaterialTheme.typography.titleMedium, color = Chart.ink)
-            Text(slot.note, style = MaterialTheme.typography.bodySmall, color = Chart.dim)
+            Text(
+                warning ?: slot.note,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (warning != null) MaterialTheme.colorScheme.error else Chart.dim,
+            )
         }
         Text(CustomPalette.toHex(color), style = MaterialTheme.typography.labelMedium, color = if (open) Chart.accent else Chart.dim)
     }

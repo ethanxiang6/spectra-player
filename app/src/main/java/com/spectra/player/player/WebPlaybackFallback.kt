@@ -15,6 +15,15 @@ import retrofit2.HttpException
 class WebPlaybackFallback(private val api: SpotifyApi) {
 
     /** Returns null on success, otherwise a short reason to show the user. */
+    /** True when Spotify on a phone is ready to be told what to play. */
+    suspend fun phoneListed(): Boolean = try {
+        api.devices().devices.any { it.id != null && !it.isRestricted && it.type.equals("Smartphone", true) }
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        false
+    }
+
     suspend fun play(uri: String, context: PlayContext? = null): String? = try {
         val devices = api.devices().devices.filter { it.id != null && !it.isRestricted }
         val model = Build.MODEL.orEmpty()
@@ -25,7 +34,7 @@ class WebPlaybackFallback(private val api: SpotifyApi) {
             ?: phones.firstOrNull { model.isNotBlank() && it.name.contains(model, true) }
             ?: phones.firstOrNull()
         if (target == null) {
-            "Spotify on this phone isn't listed yet"
+            NO_PHONE
         } else {
             val response = api.startPlayback(target.id, bodyFor(uri, context))
             if (response.isSuccessful) null else describe(response.code(), response.errorBody()?.string())
@@ -105,6 +114,8 @@ class WebPlaybackFallback(private val api: SpotifyApi) {
     }
 
     private companion object {
+        /** [play] result when Spotify on this phone is asleep (not offered as a device). */
+        const val NO_PHONE = "Spotify on this phone isn't listed yet"
         const val TAG = "WebPlayback"
     }
 }

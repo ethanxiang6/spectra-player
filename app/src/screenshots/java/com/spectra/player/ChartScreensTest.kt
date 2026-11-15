@@ -161,6 +161,29 @@ class ChartScreensTest {
         )
     }
 
+    @Test fun colors_warning() = shot("colors_warning", theme = Backdrop.CUSTOM) {
+        com.spectra.player.ui.settings.ColorEditorContent(
+            settings = AppSettings(
+                theme = Backdrop.CUSTOM,
+                custom = com.spectra.player.ui.theme.CustomPalette(text = 0xFF4A3A66.toInt(), stars = 0xFF14142A.toInt()),
+            ),
+            onUpdate = {}, onBack = {}, onPinIcon = {},
+        )
+    }
+
+    @Test fun settings_timer() {
+        paparazzi.unsafeUpdateConfig(deviceConfig = DeviceConfig.PIXEL_6.copy(screenHeight = 3600))
+        shot("settings_timer") {
+            AppSettingsContent(
+                settings = AppSettings(autoVisualizerSec = 90),
+                profile = profile,
+                premium = PremiumStatus.PREMIUM,
+                onUpdate = {}, onIcon = {}, onSignOut = {}, onBack = {},
+                initialCustomTime = true,
+            )
+        }
+    }
+
     @Test fun login() = shot("login") {
         com.spectra.player.ui.login.LoginScreen(state = com.spectra.player.auth.AuthState.SignedOut, onLogin = {})
     }

@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -133,6 +135,8 @@ fun PlaylistContent(
         if (searching && state.nextOffset != null && !state.loading && state.error == null) onLoadMore()
     }
     val listState = rememberLazyListState()
+    // Loading failed for good (no retry possible): Spotify refuses to list this playlist's songs.
+    val notShared = !album && state.items.isEmpty() && state.error != null && state.nextOffset == null && !state.loading
     // Jump to the top when the search opens or the query changes (not when coming back to the page).
     var scrolledFor by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(searching, query) {
@@ -209,13 +213,23 @@ fun PlaylistContent(
                     coverUrl = coverUrl,
                     owner = owner,
                     trackCount = trackCount,
-                    enabled = state.items.isNotEmpty(),
+                    // A playlist Spotify won't list can still be started as a whole.
+                    enabled = state.items.isNotEmpty() || notShared,
                     onPlay = { onPlayAll(false) },
                     onShuffle = { onPlayAll(true) },
                 )
             }
             if (state.items.isEmpty() && state.loading) {
                 item(key = "loading") { LoadingFooter() }
+            } else if (notShared) {
+                item(key = "not-shared") {
+                    com.spectra.player.ui.chart.ChartNote(
+                        heading = "Songs not shown",
+                        body = "Spotify only lets apps list the songs of playlists you made or help edit. " +
+                            "Play and Shuffle above still start this playlist.",
+                        extra = { Spacer(Modifier.height(6.dp)) },
+                    )
+                }
             } else if (state.items.isEmpty() && state.error != null) {
                 item(key = "error-empty") { ErrorRow(state.error, onRetry = onLoadMore) }
             } else if (state.items.isEmpty() && state.nextOffset == null) {

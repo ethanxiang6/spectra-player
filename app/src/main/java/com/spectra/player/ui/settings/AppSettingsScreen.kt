@@ -27,6 +27,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.horizontalScroll
 import com.spectra.player.ui.chart.ChartChip
 import androidx.compose.material3.Icon
@@ -97,6 +108,8 @@ fun AppSettingsContent(
     onSignOut: () -> Unit,
     onBack: () -> Unit,
     onEditColors: () -> Unit = {},
+    /** For screenshots: show the custom time fields. */
+    initialCustomTime: Boolean = false,
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -213,6 +226,9 @@ fun AppSettingsContent(
             )
 
             Section("Visualizer")
+            var customTime by rememberSaveable {
+                mutableStateOf(initialCustomTime || AutoOpenChoices.none { it.first == settings.autoVisualizerSec })
+            }
             Text(
                 "Open by itself",
                 style = MaterialTheme.typography.titleMedium,
@@ -229,16 +245,93 @@ fun AppSettingsContent(
                 AutoOpenChoices.forEach { (seconds, label) ->
                     ChartChip(
                         label,
-                        selected = settings.autoVisualizerSec == seconds,
-                        onClick = { onUpdate { it.copy(autoVisualizerSec = seconds) } },
+                        selected = !customTime && settings.autoVisualizerSec == seconds,
+                        onClick = {
+                            customTime = false
+                            onUpdate { it.copy(autoVisualizerSec = seconds) }
+                        },
                     )
                 }
+                ChartChip(
+                    "Custom",
+                    selected = customTime,
+                    onClick = {
+                        customTime = true
+                        // Coming from Off: start from one minute rather than nothing.
+                        if (settings.autoVisualizerSec <= 0) onUpdate { it.copy(autoVisualizerSec = 60) }
+                    },
+                )
+            }
+            if (customTime) {
+                DurationFields(
+                    seconds = settings.autoVisualizerSec,
+                    onSeconds = { total -> onUpdate { it.copy(autoVisualizerSec = total) } },
+                )
             }
             Caption("The visualizer has its own settings. Open it, tap the screen, then the gear.")
             Spacer(Modifier.height(40.dp))
         }
     }
 }
+
+/** Minutes and seconds boxes for a time of the user's own, 5 seconds to 60 minutes. */
+@Composable
+private fun DurationFields(seconds: Int, onSeconds: (Int) -> Unit) {
+    var minutes by remember { mutableStateOf((seconds / 60).toString()) }
+    var secs by remember { mutableStateOf((seconds % 60).toString()) }
+    fun push(m: String, s: String) {
+        val total = (m.toIntOrNull() ?: 0) * 60 + (s.toIntOrNull() ?: 0)
+        if (total > 0) onSeconds(total.coerceIn(MIN_AUTO_OPEN_SEC, MAX_AUTO_OPEN_SEC))
+    }
+    Row(
+        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        NumberBox(minutes, "Minutes") {
+            minutes = it
+            push(it, secs)
+        }
+        Text("  MIN    ", style = MaterialTheme.typography.labelMedium, color = Chart.dim)
+        NumberBox(secs, "Seconds") {
+            secs = it
+            push(minutes, it)
+        }
+        Text("  SEC", style = MaterialTheme.typography.labelMedium, color = Chart.dim)
+    }
+    Caption(
+        "Opens after ${describeDuration(seconds)} without a touch. " +
+            "Anything from $MIN_AUTO_OPEN_SEC seconds to ${MAX_AUTO_OPEN_SEC / 60} minutes.",
+    )
+}
+
+@Composable
+private fun NumberBox(value: String, label: String, onChange: (String) -> Unit) {
+    BasicTextField(
+        value = value,
+        onValueChange = { typed -> onChange(typed.filter { it.isDigit() }.take(2)) },
+        singleLine = true,
+        textStyle = MaterialTheme.typography.labelLarge.copy(color = Chart.ink, textAlign = TextAlign.Center),
+        cursorBrush = SolidColor(Chart.accent),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier
+            .width(56.dp)
+            .border(1.dp, Chart.line, Chart.corner)
+            .padding(vertical = 10.dp)
+            .semantics { contentDescription = label },
+    )
+}
+
+internal fun describeDuration(seconds: Int): String {
+    val m = seconds / 60
+    val s = seconds % 60
+    return listOfNotNull(
+        if (m > 0) "$m min" else null,
+        if (s > 0 || m == 0) "$s s" else null,
+    ).joinToString(" ")
+}
+
+private const val MIN_AUTO_OPEN_SEC = 5
+private const val MAX_AUTO_OPEN_SEC = 3600
 
 private val AutoOpenChoices = listOf(0 to "Off", 15 to "15 s", 30 to "30 s", 60 to "1 min", 120 to "2 min", 300 to "5 min")
 

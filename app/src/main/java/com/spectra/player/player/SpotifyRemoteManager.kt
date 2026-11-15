@@ -386,11 +386,14 @@ class SpotifyRemoteManager(
             // starts it; give that a moment so the phone is ready to take the play request.
             if (liveRemote() == null && _connection.value != Connection.NeedsApproval) {
                 connect(force = true)
-                kotlinx.coroutines.withTimeoutOrNull(WAKE_WAIT_MS) {
+                kotlinx.coroutines.withTimeoutOrNull(CONNECT_GRACE_MS) {
                     connection.first { it != Connection.Connecting && it != Connection.Disconnected }
                 }
             }
             val web = webPlayback
+            // Spotify asleep: App Remote can't reach it and it isn't offered as a device. It only
+            // wakes for a real "play" press, so send one, then wait until it can take requests.
+            if (web != null && liveRemote() == null && !web.phoneListed()) wakeSpotify(web)
             var started = false
             if (context != null && web != null) {
                 // Start the list *at this exact song* (by URI). App Remote can only start a list by
@@ -418,6 +421,34 @@ class SpotifyRemoteManager(
     }
 
     private var playJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Wakes a sleeping Spotify the way a headset's play button does: Android hands the key press
+     * to the app that last played music and lets it start playing from the background. Spotify
+     * resumes its last song for a moment; the caller then switches it to the tapped one.
+     * Returns once Spotify can be reached (or after [WAKE_WAIT_MS]).
+     */
+    private suspend fun wakeSpotify(web: WebPlaybackFallback) {
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager ?: return
+        // Something is already playing: a play key would go to that app, not to Spotify.
+        if (audio.isMusicActive) return
+        Log.w(TAG, "Spotify is asleep; sending a media play key to wake it")
+        try {
+            val now = SystemClock.uptimeMillis()
+            val key = android.view.KeyEvent.KEYCODE_MEDIA_PLAY
+            audio.dispatchMediaKeyEvent(android.view.KeyEvent(now, now, android.view.KeyEvent.ACTION_DOWN, key, 0))
+            audio.dispatchMediaKeyEvent(android.view.KeyEvent(now, now, android.view.KeyEvent.ACTION_UP, key, 0))
+        } catch (e: Exception) {
+            Log.w(TAG, "Couldn't send the media key: ${e.javaClass.simpleName}")
+            return
+        }
+        val deadline = SystemClock.elapsedRealtime() + WAKE_WAIT_MS
+        while (SystemClock.elapsedRealtime() < deadline) {
+            delay(WAKE_POLL_MS)
+            if (liveRemote() != null || web.phoneListed()) return
+        }
+        Log.w(TAG, "Spotify didn't wake up")
+    }
 
     /** The song a play request is waiting for, and when to stop waiting. */
     private class Awaited(val uri: String, val untilMs: Long)
@@ -487,7 +518,7 @@ class SpotifyRemoteManager(
         _messages.tryEmit(
             when (_connection.value) {
                 Connection.Connected -> "Spotify didn't start the song. Try it again."
-                else -> "Spotify isn't answering yet. Tap \"Approve in Spotify\" at the top, then try again."
+                else -> "Spotify is asleep and didn't wake up. Tap \"Approve in Spotify\" at the top to open it, then come back and try again."
             },
         )
     }
@@ -854,7 +885,9 @@ class SpotifyRemoteManager(
         const val REPEAT_ALL = 2 // com.spotify.protocol.types.Repeat.ALL
         const val VERIFY_DELAY_MS = 1_500L
         const val AWAIT_MAX_MS = 20_000L       // longest a tapped song is held on screen unconfirmed
-        const val WAKE_WAIT_MS = 4_000L        // for Spotify to start when it wasn't running
+        const val CONNECT_GRACE_MS = 1_500L    // for App Remote to connect before trying anything else
+        const val WAKE_WAIT_MS = 6_000L        // for Spotify to wake after the play key
+        const val WAKE_POLL_MS = 400L
         const val CONFIRM_POLL_MS = 500L
         const val CONFIRM_WEB_MS = 3_000L
         const val CONFIRM_REMOTE_MS = 7_000L

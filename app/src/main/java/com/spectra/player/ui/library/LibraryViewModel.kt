@@ -91,11 +91,15 @@ class LibraryViewModel(
         viewModelScope.launch {
             library.likedChanges.collect {
                 kotlinx.coroutines.delay(700) // Spotify needs a moment before the list shows the change
+                // Drop a page that is still on its way, or it would be added on top of the new list.
+                songsJob?.cancel()
                 _songs.update { it.copy(nextOffset = 0, loading = false) }
                 loadMoreSongs()
             }
         }
     }
+
+    private var songsJob: kotlinx.coroutines.Job? = null
 
     fun setLiked(track: Track, liked: Boolean) {
         viewModelScope.launch {
@@ -109,7 +113,7 @@ class LibraryViewModel(
         val offset = current.nextOffset ?: return
         if (current.loading) return
         _songs.update { it.copy(loading = true, error = null) }
-        viewModelScope.launch {
+        songsJob = viewModelScope.launch {
             try {
                 val page = library.savedTracks(offset)
                 _songs.update {

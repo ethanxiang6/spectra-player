@@ -49,4 +49,24 @@ class UpdateAndPaletteTest {
         assertEquals(0, LyricsRepository.plainIndex(10, 13_000, 200_000))
         assertEquals(9, LyricsRepository.plainIndex(10, 199_000, 200_000))
     }
+
+    @Test fun closeColoursAreFlagged() {
+        assertTrue(CustomPalette().warnings().isEmpty())
+        val dark = CustomPalette(skyTop = 0xFF000000.toInt(), skyBottom = 0xFF101010.toInt())
+        // Dark grey text on a black sky.
+        val w = dark.copy(text = 0xFF333333.toInt(), stars = 0xFF050505.toInt()).warnings()
+        assertTrue(CustomPalette.Slot.TEXT in w)
+        assertTrue(CustomPalette.Slot.STARS in w)
+        assertFalse(CustomPalette.Slot.BUTTONS in w)
+        // Fine against the top of the sky but lost against the bottom still counts.
+        val split = CustomPalette(skyTop = 0xFF000000.toInt(), skyBottom = 0xFFEEEEEE.toInt(), text = 0xFFFFFFFF.toInt())
+        assertTrue(CustomPalette.Slot.TEXT in split.warnings())
+        assertEquals(21.0, CustomPalette.contrast(0xFF000000.toInt(), 0xFFFFFFFF.toInt()), 0.01)
+    }
+
+    @Test fun durations() {
+        assertEquals("1 min 30 s", com.spectra.player.ui.settings.describeDuration(90))
+        assertEquals("2 min", com.spectra.player.ui.settings.describeDuration(120))
+        assertEquals("45 s", com.spectra.player.ui.settings.describeDuration(45))
+    }
 }

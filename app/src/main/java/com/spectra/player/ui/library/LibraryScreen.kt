@@ -201,7 +201,13 @@ fun LibraryContent(
     LaunchedEffect(searching, songs.items.size, songs.loading, songs.nextOffset, songs.error) {
         if (searching && songs.nextOffset != null && !songs.loading && songs.error == null) actions.loadMoreSongs()
     }
-    LaunchedEffect(searching, query) { if (searching) listState.scrollToItem(0) }
+    // Jump to the top when the search opens or the text changes (not when coming back to the page).
+    var scrolledFor by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(searching, query) {
+        val key = if (searching) query else null
+        if (key != null && key != scrolledFor) listState.scrollToItem(0)
+        scrolledFor = key
+    }
 
     // Keep fetching playlist pages so the map and its count are complete.
     LaunchedEffect(playlists.items.size, playlists.nextOffset, playlists.loading) {

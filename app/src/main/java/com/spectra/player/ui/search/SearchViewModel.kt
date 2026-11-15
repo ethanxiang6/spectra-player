@@ -43,6 +43,10 @@ class SearchViewModel(
     fun setKind(kind: HitKind) {
         if (kind == _kind.value) return
         _kind.value = kind
+        // Empty the other tab's results so they don't sit under the new heading while loading.
+        val loading = _query.value.isNotBlank()
+        _hits.value = ListState(loading = loading, nextOffset = if (loading) 0 else null)
+        _results.value = ListState(loading = loading, nextOffset = if (loading) 0 else null)
         onQueryChange(_query.value)
     }
 
