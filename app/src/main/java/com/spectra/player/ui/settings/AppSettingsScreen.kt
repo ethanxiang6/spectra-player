@@ -274,7 +274,7 @@ fun AppSettingsContent(
     }
 }
 
-/** Minutes and seconds boxes for a time of the user's own, 5 seconds to 60 minutes. */
+/** Minutes and seconds boxes for a time of the user's own, 5 seconds to 5 minutes. */
 @Composable
 private fun DurationFields(seconds: Int, onSeconds: (Int) -> Unit) {
     var minutes by remember { mutableStateOf((seconds / 60).toString()) }
@@ -308,7 +308,7 @@ private fun DurationFields(seconds: Int, onSeconds: (Int) -> Unit) {
 private fun NumberBox(value: String, label: String, onChange: (String) -> Unit) {
     BasicTextField(
         value = value,
-        onValueChange = { typed -> onChange(typed.filter { it.isDigit() }.take(2)) },
+        onValueChange = { typed -> onChange(typed.filter { it.isDigit() }.take(if (label == "Minutes") 1 else 2)) },
         singleLine = true,
         textStyle = MaterialTheme.typography.labelLarge.copy(color = Chart.ink, textAlign = TextAlign.Center),
         cursorBrush = SolidColor(Chart.accent),
@@ -331,7 +331,7 @@ internal fun describeDuration(seconds: Int): String {
 }
 
 private const val MIN_AUTO_OPEN_SEC = 5
-private const val MAX_AUTO_OPEN_SEC = 3600
+private const val MAX_AUTO_OPEN_SEC = 300
 
 private val AutoOpenChoices = listOf(0 to "Off", 15 to "15 s", 30 to "30 s", 60 to "1 min", 120 to "2 min", 300 to "5 min")
 

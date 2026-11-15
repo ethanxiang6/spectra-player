@@ -160,7 +160,9 @@ fun ColorEditorContent(
             if (warnings.isNotEmpty()) {
                 ChartNote(
                     heading = "Colours too close",
-                    body = warnings.keys.joinToString(", ") { it.label } +
+                    body = warnings.keys.map { it.label }.let { names ->
+                        if (names.size <= 1) names.joinToString() else names.dropLast(1).joinToString(", ") + " and " + names.last()
+                    } +
                         (if (warnings.size == 1) " is" else " are") +
                         " close to the sky colour and will be hard to see. You can keep them, or pick something lighter or darker.",
                     tone = MaterialTheme.colorScheme.error,

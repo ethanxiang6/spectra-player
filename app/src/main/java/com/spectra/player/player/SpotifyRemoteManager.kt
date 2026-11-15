@@ -382,72 +382,174 @@ class SpotifyRemoteManager(
         awaited = Awaited(uri, SystemClock.elapsedRealtime() + AWAIT_MAX_MS)
         playJob?.cancel()
         playJob = scope.launch {
-            // Spotify may not be running at all (Spectra opened first). Connecting App Remote
-            // starts it; give that a moment so the phone is ready to take the play request.
-            if (liveRemote() == null && _connection.value != Connection.NeedsApproval) {
-                connect(force = true)
-                kotlinx.coroutines.withTimeoutOrNull(CONNECT_GRACE_MS) {
-                    connection.first { it != Connection.Connecting && it != Connection.Disconnected }
-                }
+            try {
+                startRequestedSong(uri, hint, context)
+            } finally {
+                // However this ends (also when another song is tapped meanwhile), give the sound back.
+                unmuteAfterWake()
             }
-            val web = webPlayback
-            // Spotify asleep: App Remote can't reach it and it isn't offered as a device. It only
-            // wakes for a real "play" press, so send one, then wait until it can take requests.
-            if (web != null && liveRemote() == null && !web.phoneListed()) wakeSpotify(web)
-            var started = false
-            if (context != null && web != null) {
-                // Start the list *at this exact song* (by URI). App Remote can only start a list by
-                // position, and Spotify's order of e.g. Liked Songs can differ from ours.
-                val reason = web.play(uri, context)
-                if (reason == null) {
-                    // Spotify answers "ok" even when nothing starts (the app was asleep), so check.
-                    started = confirmPlaying(uri, hint?.name, CONFIRM_WEB_MS)
-                    if (started) {
-                        playConfirmed()
-                        keepInsideListViaWeb(web)
-                        refreshFromWeb()
-                    } else {
-                        Log.w(TAG, "Web API said ok but the song didn't start; using App Remote")
-                    }
+        }
+    }
+
+    private suspend fun startRequestedSong(uri: String, hint: NowPlayingTrack?, context: PlayContext?) {
+        // Spotify may not be running at all (Spectra opened first). Connecting App Remote
+        // starts it; give that a moment so the phone is ready to take the play request.
+        if (liveRemote() == null && _connection.value != Connection.NeedsApproval) {
+            connect(force = true)
+            kotlinx.coroutines.withTimeoutOrNull(CONNECT_GRACE_MS) {
+                connection.first { it != Connection.Connecting && it != Connection.Disconnected }
+            }
+        }
+        val web = webPlayback
+        // Spotify asleep: App Remote can't reach it and it isn't offered as a device. It only
+        // wakes for a real "play" press, so send one, then wait until it can take requests.
+        wokeByKey = false
+        if (web != null && liveRemote() == null && !web.phoneListed()) wakeSpotify(web)
+        var started = false
+        if (context != null && web != null) {
+            // Start the list *at this exact song* (by URI). App Remote can only start a list by
+            // position, and Spotify's order of e.g. Liked Songs can differ from ours.
+            val reason = web.play(uri, context)
+            if (reason == null) {
+                // Spotify answers "ok" even when nothing starts (the app was asleep), so check.
+                started = confirmPlaying(uri, hint?.name, CONFIRM_WEB_MS)
+                if (started) {
+                    playConfirmed()
+                    keepInsideListViaWeb(web)
+                    refreshFromWeb()
                 } else {
-                    Log.w(TAG, "Web API context play failed: $reason")
+                    Log.w(TAG, "Web API said ok but the song didn't start; using App Remote")
                 }
+            } else {
+                Log.w(TAG, "Web API context play failed: $reason")
             }
-            if (!started) {
-                playWithAppRemote(uri, context, webTried = context != null && web != null)
-                if (confirmPlaying(uri, hint?.name, CONFIRM_REMOTE_MS, anySong = true)) playConfirmed() else playDidNotStart(uri)
-            }
+        }
+        if (!started) {
+            playWithAppRemote(uri, context, webTried = context != null && web != null)
+            if (confirmPlaying(uri, hint?.name, CONFIRM_REMOTE_MS, anySong = true)) playConfirmed() else playDidNotStart(uri)
         }
     }
 
     private var playJob: kotlinx.coroutines.Job? = null
 
+    /** The play key woke Spotify, so it is playing whatever it had loaded (silenced by [mutedForWake]). */
+    private var wokeByKey = false
+    private var mutedForWake = false
+
     /**
-     * Wakes a sleeping Spotify the way a headset's play button does: Android hands the key press
-     * to the app that last played music and lets it start playing from the background. Spotify
-     * resumes its last song for a moment; the caller then switches it to the tapped one.
-     * Returns once Spotify can be reached (or after [WAKE_WAIT_MS]).
+     * Wakes a sleeping Spotify the way a headset's play button does, which is the one signal
+     * Android lets a music app start playing for while it is in the background.
+     *
+     * 1. The key is first sent to Spotify alone, so no other music app can pick it up.
+     * 2. Only if that doesn't wake it, the key goes through Android's own media-button route,
+     *    and only when Android says Spotify is the app that would receive it (or won't say).
+     *
+     * Spotify resumes its last song when woken this way, so the music volume is muted until the
+     * tapped song has been requested; [unmuteAfterWake] always undoes it.
      */
     private suspend fun wakeSpotify(web: WebPlaybackFallback) {
         val audio = context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager ?: return
-        // Something is already playing: a play key would go to that app, not to Spotify.
-        if (audio.isMusicActive) return
-        Log.w(TAG, "Spotify is asleep; sending a media play key to wake it")
-        try {
-            val now = SystemClock.uptimeMillis()
-            val key = android.view.KeyEvent.KEYCODE_MEDIA_PLAY
-            audio.dispatchMediaKeyEvent(android.view.KeyEvent(now, now, android.view.KeyEvent.ACTION_DOWN, key, 0))
-            audio.dispatchMediaKeyEvent(android.view.KeyEvent(now, now, android.view.KeyEvent.ACTION_UP, key, 0))
-        } catch (e: Exception) {
-            Log.w(TAG, "Couldn't send the media key: ${e.javaClass.simpleName}")
+        val othersPlaying = audio.isMusicActive
+        if (!othersPlaying) muteForWake(audio)
+
+        suspend fun awake(waitMs: Long): Boolean {
+            val deadline = SystemClock.elapsedRealtime() + waitMs
+            while (SystemClock.elapsedRealtime() < deadline) {
+                delay(WAKE_POLL_MS)
+                if (liveRemote() != null || web.phoneListed()) return true
+            }
+            return false
+        }
+
+        if (sendPlayKeyToSpotify()) {
+            Log.w(TAG, "Spotify is asleep; sent it a play key directly")
+            if (awake(WAKE_DIRECT_WAIT_MS)) {
+                wokeByKey = true
+                return
+            }
+        }
+        // Android's own route hands the key to the app that last played. Skip it when that is
+        // known to be another app, or when something else is playing (it would get the key).
+        val receiver = mediaKeyReceiverPackage()
+        if (othersPlaying || (receiver != null && receiver != SPOTIFY_PACKAGE)) {
+            Log.w(TAG, "Not sending a system play key (it would go to ${receiver ?: "the app that is playing"})")
+            unmuteAfterWake()
             return
         }
-        val deadline = SystemClock.elapsedRealtime() + WAKE_WAIT_MS
-        while (SystemClock.elapsedRealtime() < deadline) {
-            delay(WAKE_POLL_MS)
-            if (liveRemote() != null || web.phoneListed()) return
+        Log.w(TAG, "Sending a system media play key to wake Spotify")
+        try {
+            audio.dispatchMediaKeyEvent(playKey(android.view.KeyEvent.ACTION_DOWN))
+            audio.dispatchMediaKeyEvent(playKey(android.view.KeyEvent.ACTION_UP))
+        } catch (e: Exception) {
+            Log.w(TAG, "Couldn't send the media key: ${e.javaClass.simpleName}")
+            unmuteAfterWake()
+            return
         }
-        Log.w(TAG, "Spotify didn't wake up")
+        if (awake(WAKE_WAIT_MS)) {
+            wokeByKey = true
+        } else {
+            Log.w(TAG, "Spotify didn't wake up")
+            unmuteAfterWake()
+        }
+    }
+
+    private fun playKey(action: Int): android.view.KeyEvent {
+        val now = SystemClock.uptimeMillis()
+        return android.view.KeyEvent(now, now, action, android.view.KeyEvent.KEYCODE_MEDIA_PLAY, 0)
+    }
+
+    /** Sends the play key to Spotify's own media-button receiver. False when it has none we can see. */
+    private fun sendPlayKeyToSpotify(): Boolean = try {
+        val probe = android.content.Intent(android.content.Intent.ACTION_MEDIA_BUTTON).setPackage(SPOTIFY_PACKAGE)
+        val receivers = context.packageManager.queryBroadcastReceivers(probe, 0)
+        receivers.forEach { info ->
+            val target = android.content.ComponentName(info.activityInfo.packageName, info.activityInfo.name)
+            for (action in intArrayOf(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.ACTION_UP)) {
+                context.sendBroadcast(
+                    android.content.Intent(android.content.Intent.ACTION_MEDIA_BUTTON)
+                        .setComponent(target)
+                        .addFlags(android.content.Intent.FLAG_RECEIVER_FOREGROUND or android.content.Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+                        .putExtra(android.content.Intent.EXTRA_KEY_EVENT, playKey(action)),
+                )
+            }
+        }
+        receivers.isNotEmpty()
+    } catch (e: Exception) {
+        Log.w(TAG, "Couldn't send Spotify a play key: ${e.javaClass.simpleName}")
+        false
+    }
+
+    /** The app Android would hand a media key to, when it is willing to tell (Android 12+). */
+    private fun mediaKeyReceiverPackage(): String? = try {
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            val sessions = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as? android.media.session.MediaSessionManager
+            sessions?.mediaKeyEventSessionPackageName?.takeIf { it.isNotBlank() }
+        } else {
+            null
+        }
+    } catch (e: Exception) {
+        null // not allowed to ask
+    }
+
+    private fun muteForWake(audio: android.media.AudioManager) {
+        try {
+            if (audio.isStreamMute(android.media.AudioManager.STREAM_MUSIC)) return
+            audio.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_MUTE, 0)
+            mutedForWake = true
+        } catch (e: Exception) {
+            Log.w(TAG, "Couldn't mute for the wake-up: ${e.javaClass.simpleName}")
+        }
+    }
+
+    private fun unmuteAfterWake() {
+        if (!mutedForWake) return
+        mutedForWake = false
+        try {
+            val audio = context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
+            audio?.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_UNMUTE, 0)
+        } catch (e: Exception) {
+            Log.w(TAG, "Couldn't unmute after the wake-up: ${e.javaClass.simpleName}")
+        }
     }
 
     /** The song a play request is waiting for, and when to stop waiting. */
@@ -475,7 +577,10 @@ class SpotifyRemoteManager(
                 val state = kotlinx.coroutines.withTimeoutOrNull(1_500L) { appRemoteState(r) }
                 val track = state?.track
                 val isIt = track != null && (track.uri == uri || (name != null && track.name.equals(name, ignoreCase = true)))
-                if (state != null && track != null && !state.isPaused && isIt) return true
+                if (state != null && track != null && !state.isPaused && isIt) {
+                    unmuteAfterWake()
+                    return true
+                }
                 val settled = SystemClock.elapsedRealtime() - (deadline - timeoutMs) >= VERIFY_DELAY_MS
                 if (state != null && track != null && !state.isPaused && anySong && settled) {
                     // A list started by position can land on a neighbouring song: ask once for
@@ -492,7 +597,10 @@ class SpotifyRemoteManager(
                 val state = webPlayback?.currentlyPlaying()
                 val track = state?.track
                 val isIt = track != null && (track.uri == uri || (name != null && track.name.equals(name, ignoreCase = true)))
-                if (state != null && track != null && state.isPlaying && (anySong || isIt)) return true
+                if (state != null && track != null && state.isPlaying && (anySong || isIt)) {
+                    unmuteAfterWake()
+                    return true
+                }
                 if (state != null && isIt && !state.isPlaying) webPlayback?.resume()
             }
         }
@@ -509,6 +617,13 @@ class SpotifyRemoteManager(
     /** The song never started: stop showing it as playing and say what to do. */
     private fun playDidNotStart(uri: String) {
         awaited = null
+        if (wokeByKey) {
+            // Waking Spotify started its last song (muted). The tapped one never came, so stop
+            // that instead of letting it play once the sound is back.
+            wokeByKey = false
+            val api = liveRemote()?.playerApi
+            if (api != null) api.pause() else webCommand { it.pause() }
+        }
         val pb = _playback.value
         if (pb.track?.uri == uri && pb.isPlaying) {
             _playback.value = pb.copy(isPlaying = false, positionMs = 0, capturedAtElapsedMs = SystemClock.elapsedRealtime())
@@ -886,7 +1001,8 @@ class SpotifyRemoteManager(
         const val VERIFY_DELAY_MS = 1_500L
         const val AWAIT_MAX_MS = 20_000L       // longest a tapped song is held on screen unconfirmed
         const val CONNECT_GRACE_MS = 1_500L    // for App Remote to connect before trying anything else
-        const val WAKE_WAIT_MS = 6_000L        // for Spotify to wake after the play key
+        const val WAKE_WAIT_MS = 5_000L        // for Spotify to wake after the system play key
+        const val WAKE_DIRECT_WAIT_MS = 2_500L // ... and after the key sent straight to Spotify
         const val WAKE_POLL_MS = 400L
         const val CONFIRM_POLL_MS = 500L
         const val CONFIRM_WEB_MS = 3_000L
