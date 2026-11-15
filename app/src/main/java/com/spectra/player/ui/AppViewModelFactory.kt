@@ -17,7 +17,7 @@ fun appViewModelFactory(container: AppContainer): ViewModelProvider.Factory = vi
     initializer {
         LibraryViewModel(
             container.authManager, container.library, container.remote, container.network,
-            container.updates, container.appPrefs,
+            container.updates, container.appPrefs, container.updateInstaller,
         )
     }
     initializer { PlaylistViewModel(createSavedStateHandle(), container.library, container.remote) }

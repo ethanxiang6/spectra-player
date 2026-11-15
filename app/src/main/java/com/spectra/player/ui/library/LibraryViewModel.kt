@@ -42,7 +42,37 @@ class LibraryViewModel(
     network: NetworkMonitor,
     private val updates: com.spectra.player.data.UpdateChecker,
     private val appPrefs: com.spectra.player.ui.theme.AppPrefs,
+    private val installer: com.spectra.player.data.UpdateInstaller,
 ) : ViewModel() {
+
+    /** Where a download-and-install of the update is; shown in the update note. */
+    private val _updateStep = MutableStateFlow(UpdateStep())
+    val updateStep: StateFlow<UpdateStep> = _updateStep
+
+    /** Downloads the update inside the app (unless it's already here) and starts the install. */
+    fun installUpdate(info: com.spectra.player.data.UpdateInfo) {
+        if (_updateStep.value.busy) return
+        viewModelScope.launch {
+            var file = installer.downloaded(info)
+            if (file == null) {
+                _updateStep.value = UpdateStep(UpdateStep.Stage.DOWNLOADING, 0)
+                file = installer.download(info) { percent -> _updateStep.value = UpdateStep(UpdateStep.Stage.DOWNLOADING, percent) }
+            }
+            if (file == null) {
+                _updateStep.value = UpdateStep(UpdateStep.Stage.FAILED, problem = "The download didn't finish. Check your connection and try again.")
+                return@launch
+            }
+            startInstall(file)
+        }
+    }
+
+    private suspend fun startInstall(file: java.io.File) {
+        _updateStep.value = UpdateStep(UpdateStep.Stage.INSTALLING)
+        if (!installer.install(file)) {
+            _updateStep.value = UpdateStep(UpdateStep.Stage.FAILED, problem = "Android wouldn't start the install. Try again.")
+        }
+    }
+
 
     private val latestRelease = MutableStateFlow<com.spectra.player.data.UpdateInfo?>(null)
 
@@ -87,6 +117,22 @@ class LibraryViewModel(
         refreshCachedTracks()
         remote.connect()
         viewModelScope.launch { latestRelease.value = updates.check() }
+        // An update that was downloaded earlier but never got installed: install it now.
+        viewModelScope.launch {
+            val waiting = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { installer.pending() }
+            if (waiting != null && !_updateStep.value.busy) {
+                remote.notify("Installing the update you downloaded. Spectra closes for a moment; open it again after.")
+                startInstall(waiting)
+            }
+        }
+        viewModelScope.launch {
+            com.spectra.player.data.UpdateInstaller.results.collect { problem ->
+                _updateStep.value = UpdateStep(UpdateStep.Stage.FAILED, problem = problem)
+                remote.notify(problem)
+                // Don't offer the same file again at every launch; "Try again" downloads it fresh.
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { installer.clear() }
+            }
+        }
         // A song was liked or unliked somewhere in the app: fetch the list again.
         viewModelScope.launch {
             library.likedChanges.collect {
@@ -211,4 +257,11 @@ class LibraryViewModel(
     private fun refreshCachedTracks() {
         viewModelScope.launch { _cachedTracks.value = library.cachedSavedTracks() }
     }
+}
+
+
+/** Progress of downloading and installing an update. */
+data class UpdateStep(val stage: Stage = Stage.IDLE, val percent: Int = 0, val problem: String? = null) {
+    enum class Stage { IDLE, DOWNLOADING, INSTALLING, FAILED }
+    val busy: Boolean get() = stage == Stage.DOWNLOADING || stage == Stage.INSTALLING
 }

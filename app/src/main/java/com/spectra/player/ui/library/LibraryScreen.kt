@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -86,6 +87,7 @@ fun LibraryScreen(
     val playback by viewModel.playback.collectAsStateWithLifecycle()
     val artwork by viewModel.artwork.collectAsStateWithLifecycle()
     val update by viewModel.availableUpdate.collectAsStateWithLifecycle()
+    val updateStep by viewModel.updateStep.collectAsStateWithLifecycle()
 
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
@@ -101,7 +103,9 @@ fun LibraryScreen(
         artwork = artwork,
         snackbar = snackbar,
         update = update,
+        updateStep = updateStep,
         actions = LibraryActions(
+            installUpdate = viewModel::installUpdate,
             like = viewModel::setLiked,
             skipUpdate = viewModel::skipUpdate,
             openUpdate = { info ->
@@ -154,6 +158,7 @@ class LibraryActions(
     val like: (Track, Boolean) -> Unit = { _, _ -> },
     val openUpdate: (com.spectra.player.data.UpdateInfo) -> Unit = {},
     val skipUpdate: (com.spectra.player.data.UpdateInfo) -> Unit = {},
+    val installUpdate: (com.spectra.player.data.UpdateInfo) -> Unit = {},
 )
 
 /** Playlists shown on the map before "Show all". */
@@ -172,6 +177,7 @@ fun LibraryContent(
     actions: LibraryActions,
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
     update: com.spectra.player.data.UpdateInfo? = null,
+    updateStep: UpdateStep = UpdateStep(),
     /** For screenshots: open with the Liked songs search showing this text. */
     initialLikedSearch: String? = null,
 ) {
@@ -283,12 +289,28 @@ fun LibraryContent(
                     item(key = "update") {
                         ChartNote(
                             heading = "Update available",
-                            body = "Spectra ${update.tag} is out. This phone has ${com.spectra.player.BuildConfig.VERSION_NAME}.",
-                            tone = Chart.accent,
+                            body = when (updateStep.stage) {
+                                UpdateStep.Stage.DOWNLOADING -> "Downloading Spectra ${update.tag}: ${updateStep.percent}%"
+                                UpdateStep.Stage.INSTALLING ->
+                                    "Installing Spectra ${update.tag}. Spectra closes for a moment; open it again after."
+                                UpdateStep.Stage.FAILED -> updateStep.problem ?: "The update didn't go through."
+                                UpdateStep.Stage.IDLE ->
+                                    "Spectra ${update.tag} is out. This phone has ${com.spectra.player.BuildConfig.VERSION_NAME}."
+                            },
+                            tone = if (updateStep.stage == UpdateStep.Stage.FAILED) MaterialTheme.colorScheme.error else Chart.accent,
                             modifier = Modifier.padding(top = 14.dp),
                             actions = {
-                                TextButton(onClick = { actions.openUpdate(update) }) { Text("DOWNLOAD") }
-                                TextButton(onClick = { actions.skipUpdate(update) }) { Text("SKIP THIS ONE") }
+                                when (updateStep.stage) {
+                                    UpdateStep.Stage.DOWNLOADING, UpdateStep.Stage.INSTALLING -> Spacer(Modifier.height(8.dp))
+                                    UpdateStep.Stage.FAILED -> {
+                                        TextButton(onClick = { actions.installUpdate(update) }) { Text("TRY AGAIN") }
+                                        TextButton(onClick = { actions.openUpdate(update) }) { Text("OPEN IN BROWSER") }
+                                    }
+                                    UpdateStep.Stage.IDLE -> {
+                                        TextButton(onClick = { actions.installUpdate(update) }) { Text("UPDATE") }
+                                        TextButton(onClick = { actions.skipUpdate(update) }) { Text("SKIP THIS ONE") }
+                                    }
+                                }
                             },
                         )
                     }

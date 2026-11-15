@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -583,8 +584,15 @@ private fun ControlsOverlay(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.45f), Color.Transparent)))
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-                .padding(start = 4.dp, end = 8.dp, top = 4.dp, bottom = 28.dp),
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                // The status bar is hidden here, so its full height isn't needed above the buttons:
+                // keep a third of it, enough to stay clear of the camera cut-out.
+                .padding(
+                    start = 4.dp,
+                    end = 8.dp,
+                    top = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding() * 0.33f,
+                    bottom = 28.dp,
+                ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onClose) {
