@@ -38,6 +38,15 @@ object Dusk {
      */
     var mono by mutableStateOf(false)
 
+    /** The user's Custom theme colours (App settings). Always holds the saved palette. */
+    var palette by mutableStateOf(com.spectra.player.ui.theme.CustomPalette())
+
+    /** The app pages are using the Custom theme. */
+    var appCustom by mutableStateOf(false)
+
+    /** The visualizer is open with its background set to Custom: its controls take the palette. */
+    var vizCustom by mutableStateOf(false)
+
     val SkyTop get() = if (mono) Color.Black else Color(0xFF03051A)
     val SkyUpper get() = if (mono) Color.Black else Color(0xFF0A0F33)
     val SkyMid get() = if (mono) Color(0xFF1A1A1A) else Color(0xFF1B1A4B)
@@ -46,13 +55,16 @@ object Dusk {
     val Haze get() = if (mono) Color.White else Color(0xFFE9A08E)
 
     // Monochrome: every accent (ring bars, buttons, sliders, progress) is pure white.
-    val Lavender get() = if (mono) Color.White else Color(0xFFCBB9FF)
+    val Lavender get() = if (mono) Color.White else if (vizCustom) Color(palette.buttons) else Color(0xFFCBB9FF)
+
+    /** Seek bar and settings sliders. */
+    val Slider get() = if (mono) Color.White else if (vizCustom) Color(palette.sliders) else Color(0xFFCBB9FF)
     val SkyBlue get() = if (mono) Color.White else Color(0xFF8FCBFF)
     val Rose get() = if (mono) Color.White else Color(0xFFFF9FC8)
     val Peach get() = if (mono) Color.White else Color(0xFFFFC4A6)
 
-    val Text get() = if (mono) Color.White else Color(0xFFF5F2FF)
-    val TextDim get() = if (mono) Color(0xFFB3B3B3) else Color(0xFFC9C3E6)
+    val Text get() = if (mono) Color.White else if (vizCustom) Color(palette.text) else Color(0xFFF5F2FF)
+    val TextDim get() = if (mono) Color(0xFFB3B3B3) else if (vizCustom) Color(palette.text).copy(alpha = 0.72f) else Color(0xFFC9C3E6)
 
     /** Sweep around the ring: cool at the top, warm toward the horizon side. */
     val ring get() = listOf(Lavender, SkyBlue, Rose, Peach, Lavender)
@@ -90,6 +102,7 @@ class BackdropLook(
     val aurora: Boolean = false,
     val nebula: Boolean = false,
     val shootingStars: Boolean = true,
+    val starColor: Color = Color.White,
 )
 
 fun Backdrop.look(): BackdropLook = when (this) {
@@ -134,6 +147,16 @@ fun Backdrop.look(): BackdropLook = when (this) {
         stops = listOf(0f to Color.Black, 1f to Color.Black),
         haze = null, hazeAlpha = 0f, starDensity = 1f, ring = Dusk.ring,
     )
+    Backdrop.CUSTOM -> Dusk.palette.let { p ->
+        val a = Color(p.bars1)
+        val b = Color(p.bars2)
+        BackdropLook(
+            stops = listOf(0f to Color(p.skyTop), 1f to Color(p.skyBottom)),
+            haze = null, hazeAlpha = 0f, starDensity = 1f,
+            ring = listOf(a, b, a, b, a),
+            starColor = Color(p.stars),
+        )
+    }
 }
 
 /**
@@ -228,9 +251,9 @@ private fun SkyCanvas(
                     if (s.bright) {
                         a = (a + 0.3f * e).coerceAtMost(1f)
                         r *= 1f + 0.25f * e
-                        drawCircle(Color.White, r * 3.6f, Offset(s.x, s.y), alpha = a * 0.14f)
+                        drawCircle(look.starColor, r * 3.6f, Offset(s.x, s.y), alpha = a * 0.14f)
                     }
-                    drawCircle(Color.White, r, Offset(s.x, s.y), alpha = a.coerceIn(0f, 1f))
+                    drawCircle(look.starColor, r, Offset(s.x, s.y), alpha = a.coerceIn(0f, 1f))
                 }
 
                 if (showStars && look.shootingStars) drawShootingStar(t, w, h, dp)

@@ -40,7 +40,20 @@ class LibraryViewModel(
     private val library: LibraryRepository,
     private val remote: SpotifyRemoteManager,
     network: NetworkMonitor,
+    private val updates: com.spectra.player.data.UpdateChecker,
+    private val appPrefs: com.spectra.player.ui.theme.AppPrefs,
 ) : ViewModel() {
+
+    private val latestRelease = MutableStateFlow<com.spectra.player.data.UpdateInfo?>(null)
+
+    /** A newer release on GitHub, unless the user chose to skip that one. */
+    val availableUpdate: StateFlow<com.spectra.player.data.UpdateInfo?> =
+        combine(latestRelease, appPrefs.settings) { release, settings ->
+            release?.takeIf { it.tag != settings.skippedUpdate }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun skipUpdate(info: com.spectra.player.data.UpdateInfo) = appPrefs.update { it.copy(skippedUpdate = info.tag) }
+
 
     private val _songs = MutableStateFlow(ListState<Track>())
     val songs: StateFlow<ListState<Track>> = _songs.asStateFlow()
@@ -73,6 +86,22 @@ class LibraryViewModel(
         loadMorePlaylists()
         refreshCachedTracks()
         remote.connect()
+        viewModelScope.launch { latestRelease.value = updates.check() }
+        // A song was liked or unliked somewhere in the app: fetch the list again.
+        viewModelScope.launch {
+            library.likedChanges.collect {
+                kotlinx.coroutines.delay(700) // Spotify needs a moment before the list shows the change
+                _songs.update { it.copy(nextOffset = 0, loading = false) }
+                loadMoreSongs()
+            }
+        }
+    }
+
+    fun setLiked(track: Track, liked: Boolean) {
+        viewModelScope.launch {
+            val problem = library.setLiked(track.uri, liked)
+            remote.notify(problem ?: if (liked) "Added \"${track.name}\" to Liked songs" else "Removed \"${track.name}\" from Liked songs")
+        }
     }
 
     fun loadMoreSongs() {

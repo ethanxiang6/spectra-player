@@ -2,6 +2,8 @@ package com.spectra.player.ui.search
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.spectra.player.data.Hit
+import com.spectra.player.data.HitKind
 import com.spectra.player.data.Track
 import com.spectra.player.data.repository.LibraryRepository
 import com.spectra.player.data.userMessage
@@ -30,6 +32,27 @@ class SearchViewModel(
     private val _results = MutableStateFlow(ListState<Track>(nextOffset = null))
     val results: StateFlow<ListState<Track>> = _results.asStateFlow()
 
+    /** What is being searched for: songs, artists, albums or playlists. */
+    private val _kind = MutableStateFlow(HitKind.SONGS)
+    val kind: StateFlow<HitKind> = _kind.asStateFlow()
+
+    /** Results when [kind] isn't songs. */
+    private val _hits = MutableStateFlow(ListState<Hit>(nextOffset = null))
+    val hits: StateFlow<ListState<Hit>> = _hits.asStateFlow()
+
+    fun setKind(kind: HitKind) {
+        if (kind == _kind.value) return
+        _kind.value = kind
+        onQueryChange(_query.value)
+    }
+
+    fun setLiked(track: Track) {
+        viewModelScope.launch {
+            val problem = library.setLiked(track.uri, true)
+            remote.notify(problem ?: "Added \"${track.name}\" to Liked songs")
+        }
+    }
+
     val playback = remote.playback
     val artwork = remote.artwork
     val messages = remote.messages
@@ -42,12 +65,46 @@ class SearchViewModel(
         val q = text.trim()
         if (q.isEmpty()) {
             _results.value = ListState(nextOffset = null)
+            _hits.value = ListState(nextOffset = null)
             return
         }
         searchJob = viewModelScope.launch {
             delay(DEBOUNCE_MS) // wait until typing pauses
-            _results.value = ListState(loading = true, nextOffset = 0)
-            load(q, 0)
+            if (_kind.value == HitKind.SONGS) {
+                _results.value = ListState(loading = true, nextOffset = 0)
+                load(q, 0)
+            } else {
+                _hits.value = ListState(loading = true, nextOffset = 0)
+                loadHits(q, _kind.value, 0)
+            }
+        }
+    }
+
+    fun loadMoreHits() {
+        val current = _hits.value
+        val offset = current.nextOffset ?: return
+        if (current.loading || offset == 0) return
+        val q = _query.value.trim()
+        if (q.isEmpty()) return
+        _hits.update { it.copy(loading = true, error = null) }
+        searchJob = viewModelScope.launch { loadHits(q, _kind.value, offset) }
+    }
+
+    private suspend fun loadHits(q: String, kind: HitKind, offset: Int) {
+        try {
+            val page = library.search(q, kind, offset)
+            _hits.update {
+                it.copy(
+                    items = if (offset == 0) page.items else it.items + page.items,
+                    nextOffset = page.nextOffset,
+                    loading = false,
+                    error = null,
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _hits.update { it.copy(loading = false, error = e.userMessage()) }
         }
     }
 

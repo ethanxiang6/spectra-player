@@ -20,7 +20,20 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import android.os.SystemClock
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.lifecycle.Lifecycle
 import com.spectra.player.AppContainer
+import com.spectra.player.data.Hit
+import com.spectra.player.data.HitKind
+import com.spectra.player.ui.search.ArtistScreen
+import com.spectra.player.ui.search.ArtistViewModel
+import com.spectra.player.ui.settings.ColorEditorScreen
+import kotlinx.coroutines.delay
 import com.spectra.player.auth.AuthState
 import com.spectra.player.ui.library.LibraryScreen
 import com.spectra.player.ui.library.LibraryViewModel
@@ -66,7 +79,57 @@ fun SpectraRoot(container: AppContainer, onLogin: () -> Unit) {
     }
 
     val appSettings by container.appPrefs.settings.collectAsStateWithLifecycle()
-    Box(modifier = Modifier.fillMaxSize()) {
+
+    val openHit: (Hit) -> Unit = { hit ->
+        when (hit.kind) {
+            HitKind.ARTISTS -> nav.navigate(Route.Artist(hit.id, hit.title, hit.imageUrl))
+            HitKind.ALBUMS -> nav.navigate(
+                Route.PlaylistDetail(hit.id, hit.title, hit.imageUrl, hit.owner, hit.trackCount ?: -1, Route.KIND_ALBUM),
+            )
+            HitKind.PLAYLISTS -> nav.navigate(
+                Route.PlaylistDetail(hit.id, hit.title, hit.imageUrl, hit.owner, hit.trackCount ?: -1),
+            )
+            HitKind.SONGS -> Unit
+        }
+    }
+
+    // "Open by itself": with music playing and no touch for the chosen time, show the visualizer.
+    val lastTouch = remember { longArrayOf(SystemClock.elapsedRealtime()) }
+    val playback by container.remote.playback.collectAsStateWithLifecycle()
+    val typing = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    @Suppress("DEPRECATION")
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(appSettings.autoVisualizerSec, playback.isPlaying, typing) {
+        val wait = appSettings.autoVisualizerSec
+        if (wait <= 0 || !playback.isPlaying || typing) return@LaunchedEffect
+        lastTouch[0] = SystemClock.elapsedRealtime()
+        while (true) {
+            delay(1_000)
+            val now = SystemClock.elapsedRealtime()
+            val dest = nav.currentDestination
+            val onAppPage = dest != null && !dest.hasRoute<Route.NowPlaying>() && !dest.hasRoute<Route.Login>()
+            if (!onAppPage || !lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                lastTouch[0] = now
+            } else if (now - lastTouch[0] >= wait * 1_000L) {
+                lastTouch[0] = now
+                nav.navigate(Route.NowPlaying) { launchSingleTop = true }
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                // Only watches touches (on their way down to the pages); never consumes them.
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent(PointerEventPass.Initial)
+                        lastTouch[0] = SystemClock.elapsedRealtime()
+                    }
+                }
+            },
+    ) {
         // The chosen sky, drawn once behind every screen (static: no animation outside the visualizer).
         SkyBackdrop(
             backdrop = if (appSettings.monochrome) com.spectra.player.visualizer.Backdrop.BLACK else appSettings.theme,
@@ -102,6 +165,19 @@ fun SpectraRoot(container: AppContainer, onLogin: () -> Unit) {
                     premium = premium,
                     onSignOut = libraryVm::signOut,
                     onBack = { nav.navigateUp() },
+                    onEditColors = { nav.navigate(Route.Colors) },
+                )
+            }
+            composable<Route.Colors> {
+                ColorEditorScreen(prefs = container.appPrefs, onBack = { nav.navigateUp() })
+            }
+            composable<Route.Artist> {
+                val vm: ArtistViewModel = viewModel(factory = factory)
+                ArtistScreen(
+                    viewModel = vm,
+                    onBack = { nav.navigateUp() },
+                    onOpenNowPlaying = { nav.navigate(Route.NowPlaying) },
+                    onOpenAlbum = openHit,
                 )
             }
             composable<Route.Search> {
@@ -110,6 +186,7 @@ fun SpectraRoot(container: AppContainer, onLogin: () -> Unit) {
                     viewModel = vm,
                     onBack = { nav.navigateUp() },
                     onOpenNowPlaying = { nav.navigate(Route.NowPlaying) },
+                    onOpenHit = openHit,
                 )
             }
             composable<Route.PlaylistDetail> {

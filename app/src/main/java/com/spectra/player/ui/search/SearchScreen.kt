@@ -39,7 +39,14 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.spectra.player.data.Hit
+import com.spectra.player.data.HitKind
 import com.spectra.player.data.Track
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Arrangement
+import com.spectra.player.ui.chart.ChartChip
+import com.spectra.player.ui.components.HitRow
 import com.spectra.player.player.PlaybackState
 import com.spectra.player.ui.chart.Chart
 import com.spectra.player.ui.chart.ChartRule
@@ -56,11 +63,14 @@ fun SearchScreen(
     viewModel: SearchViewModel,
     onBack: () -> Unit,
     onOpenNowPlaying: () -> Unit,
+    onOpenHit: (Hit) -> Unit = {},
 ) {
     val query by viewModel.query.collectAsStateWithLifecycle()
     val results by viewModel.results.collectAsStateWithLifecycle()
     val playback by viewModel.playback.collectAsStateWithLifecycle()
     val artwork by viewModel.artwork.collectAsStateWithLifecycle()
+    val kind by viewModel.kind.collectAsStateWithLifecycle()
+    val hits by viewModel.hits.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
 
@@ -78,6 +88,12 @@ fun SearchScreen(
         onLoadMore = viewModel::loadMore,
         onTogglePlay = viewModel::togglePlayPause,
         onNext = viewModel::skipNext,
+        kind = kind,
+        hits = hits,
+        onKind = viewModel::setKind,
+        onOpenHit = onOpenHit,
+        onLoadMoreHits = viewModel::loadMoreHits,
+        onLike = viewModel::setLiked,
     )
 }
 
@@ -97,6 +113,12 @@ fun SearchContent(
     onNext: () -> Unit,
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
     autoFocus: Boolean = true,
+    kind: HitKind = HitKind.SONGS,
+    hits: ListState<Hit> = ListState(nextOffset = null),
+    onKind: (HitKind) -> Unit = {},
+    onOpenHit: (Hit) -> Unit = {},
+    onLoadMoreHits: () -> Unit = {},
+    onLike: ((Track) -> Unit)? = null,
 ) {
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -145,6 +167,17 @@ fun SearchContent(
                         }
                     }
                 }
+                // What to look for.
+                Row(
+                    modifier = Modifier
+                        .horizontalScroll(rememberScrollState())
+                        .padding(start = 20.dp, end = 20.dp, top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    HitKind.entries.forEach { k ->
+                        ChartChip(k.label, selected = k == kind, onClick = { onKind(k) })
+                    }
+                }
             }
         },
         bottomBar = {
@@ -166,6 +199,31 @@ fun SearchContent(
                 query.isBlank() -> item(key = "hint") {
                     Hint("Look for anything on Spotify. A song you play from here carries on with the rest of its album.")
                 }
+                kind != HitKind.SONGS -> when {
+                    hits.items.isEmpty() && hits.loading -> item(key = "hits-loading") { LoadingFooter() }
+                    hits.items.isEmpty() && hits.error != null ->
+                        item(key = "hits-error") { ErrorRow(hits.error, onRetry = { onQueryChange(query) }) }
+                    hits.items.isEmpty() -> item(key = "hits-empty") {
+                        Hint("No ${kind.label.lowercase()} match \u201c$query\u201d.")
+                    }
+                    else -> {
+                        item(key = "hits-rule") { ChartRule(kind.label, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)) }
+                        items(hits.items.size, key = { i -> "h_${i}_${hits.items[i].id}" }) { i ->
+                            val hit = hits.items[i]
+                            HitRow(hit, onClick = {
+                                keyboard?.hide()
+                                onOpenHit(hit)
+                            })
+                        }
+                        when {
+                            hits.error != null -> item(key = "hits-more-error") { ErrorRow(hits.error, onRetry = onLoadMoreHits) }
+                            hits.nextOffset != null -> item(key = "hits-footer") {
+                                LaunchedEffect(hits.items.size) { onLoadMoreHits() }
+                                LoadingFooter()
+                            }
+                        }
+                    }
+                }
                 results.items.isEmpty() && results.loading -> item(key = "loading") { LoadingFooter() }
                 results.items.isEmpty() && results.error != null ->
                     item(key = "error") { ErrorRow(results.error, onRetry = { onQueryChange(query) }) }
@@ -175,7 +233,7 @@ fun SearchContent(
                 else -> resultRows(results, playback, onPlay = { track ->
                     keyboard?.hide()
                     onPlay(track)
-                }, onQueue = onQueue, onLoadMore = onLoadMore)
+                }, onQueue = onQueue, onLoadMore = onLoadMore, onLike = onLike)
             }
         }
     }
@@ -187,6 +245,7 @@ private fun LazyListScope.resultRows(
     onPlay: (Track) -> Unit,
     onQueue: (Track) -> Unit,
     onLoadMore: () -> Unit,
+    onLike: ((Track) -> Unit)?,
 ) {
     item(key = "rule") { ChartRule("Results", modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)) }
     items(results.items.size, key = { i -> "${i}_${results.items[i].uri}" }) { i ->
@@ -198,6 +257,7 @@ private fun LazyListScope.resultRows(
             number = i + 1,
             onClick = { onPlay(track) },
             onAddToQueue = { onQueue(track) },
+            onLike = onLike?.let { like -> { like(track) } },
         )
     }
     when {

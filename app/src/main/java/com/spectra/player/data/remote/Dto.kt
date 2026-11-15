@@ -29,10 +29,22 @@ data class UserDto(
 )
 
 @Serializable
-data class ArtistDto(val name: String = "")
+data class ArtistDto(
+    val name: String = "",
+    val id: String? = null,
+    val images: List<ImageDto>? = null,
+)
 
 @Serializable
-data class AlbumDto(val name: String = "", val images: List<ImageDto>? = null, val uri: String? = null)
+data class AlbumDto(
+    val name: String = "",
+    val images: List<ImageDto>? = null,
+    val uri: String? = null,
+    val id: String? = null,
+    val artists: List<ArtistDto>? = null,
+    @SerialName("total_tracks") val totalTracks: Int? = null,
+    @SerialName("release_date") val releaseDate: String? = null,
+)
 
 @Serializable
 data class TrackDto(
@@ -117,7 +129,13 @@ data class PlayBodyDto(
 data class OffsetDto(val uri: String? = null, val position: Int? = null)
 
 @Serializable
-data class SearchDto(val tracks: PagingDto<TrackDto>? = null)
+data class SearchDto(
+    val tracks: PagingDto<TrackDto>? = null,
+    val artists: PagingDto<ArtistDto>? = null,
+    val albums: PagingDto<AlbumDto>? = null,
+    /** Spotify returns `null` entries here for playlists it won't share. */
+    val playlists: PagingDto<PlaylistDto?>? = null,
+)
 
 @Serializable
 data class CurrentlyPlayingDto(

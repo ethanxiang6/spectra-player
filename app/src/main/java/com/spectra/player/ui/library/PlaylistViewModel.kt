@@ -30,7 +30,8 @@ class PlaylistViewModel(
     val coverUrl: String? = route.imageUrl
     val owner: String = route.owner
     val trackCount: Int? = route.trackCount.takeIf { it >= 0 }
-    private val playlistUri = "spotify:playlist:${route.id}"
+    val isAlbum: Boolean = route.kind == Route.KIND_ALBUM
+    private val playlistUri = if (isAlbum) "spotify:album:${route.id}" else "spotify:playlist:${route.id}"
 
     private val _tracks = MutableStateFlow(ListState<Track>())
     val tracks: StateFlow<ListState<Track>> = _tracks.asStateFlow()
@@ -50,12 +51,17 @@ class PlaylistViewModel(
         _tracks.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             try {
-                val page = library.playlistTracks(route.id, offset)
+                val page = if (isAlbum) {
+                    library.albumTracks(route.id, offset, route.name, route.imageUrl)
+                } else {
+                    library.playlistTracks(route.id, offset)
+                }
                 _tracks.update {
                     it.copy(
                         items = if (offset == 0) page.items else it.items + page.items,
                         nextOffset = page.nextOffset,
                         loading = false,
+                        fromCache = page.fromCache,
                     )
                 }
             } catch (e: CancellationException) {
@@ -99,6 +105,13 @@ class PlaylistViewModel(
         remote.play(track.uri, track.toNowPlaying(), PlayContext(playlistUri, index))
 
     fun queue(track: Track) = remote.queue(track.uri, track.name)
+
+    fun setLiked(track: Track, liked: Boolean) {
+        viewModelScope.launch {
+            val problem = library.setLiked(track.uri, liked)
+            remote.notify(problem ?: if (liked) "Added \"${track.name}\" to Liked songs" else "Removed \"${track.name}\" from Liked songs")
+        }
+    }
     fun skipNext() = remote.skipNext()
     fun togglePlayPause() = remote.togglePlayPause()
 }

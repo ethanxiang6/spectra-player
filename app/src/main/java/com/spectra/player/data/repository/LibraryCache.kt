@@ -22,6 +22,8 @@ class LibraryCache(context: Context, private val json: Json) {
     private data class Snapshot(
         val savedTracks: List<Track> = emptyList(),
         val playlists: List<Playlist> = emptyList(),
+        /** Songs of the playlists that were opened, by playlist id. */
+        val playlistTracks: Map<String, List<Track>> = emptyMap(),
         val savedAtMs: Long = 0,
     )
 
@@ -39,6 +41,15 @@ class LibraryCache(context: Context, private val json: Json) {
     suspend fun writePlaylists(offset: Int, items: List<Playlist>) = update { snap ->
         val merged = if (offset == 0) items else snap.playlists + items
         snap.copy(playlists = merged.take(MAX_PLAYLISTS))
+    }
+
+    suspend fun playlistTracks(id: String): List<Track> = read().playlistTracks[id].orEmpty()
+
+    suspend fun writePlaylistTracks(id: String, offset: Int, items: List<Track>) = update { snap ->
+        val merged = (if (offset == 0) items else snap.playlistTracks[id].orEmpty() + items).take(MAX_TRACKS)
+        // Re-insert so the most recently opened playlists are the ones kept.
+        val kept = (snap.playlistTracks - id).entries.toList().takeLast(MAX_CACHED_PLAYLISTS - 1)
+        snap.copy(playlistTracks = kept.associate { it.key to it.value } + (id to merged))
     }
 
     suspend fun clear() = lock.withLock {
@@ -66,5 +77,6 @@ class LibraryCache(context: Context, private val json: Json) {
     private companion object {
         const val MAX_TRACKS = 300
         const val MAX_PLAYLISTS = 100
+        const val MAX_CACHED_PLAYLISTS = 25
     }
 }

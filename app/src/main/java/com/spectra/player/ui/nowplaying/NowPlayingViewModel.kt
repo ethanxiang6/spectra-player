@@ -9,6 +9,7 @@ import com.spectra.player.visualizer.VisualizerSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
@@ -20,7 +21,35 @@ class NowPlayingViewModel(
     private val prefs: VisualizerPrefs,
     private val lyricsRepo: com.spectra.player.data.lyrics.LyricsRepository,
     private val appPrefs: com.spectra.player.ui.theme.AppPrefs,
+    private val library: com.spectra.player.data.repository.LibraryRepository,
 ) : ViewModel() {
+
+    /** Whether the current song is in Liked songs; null while unknown (no heart is shown then). */
+    private val _liked = MutableStateFlow<Boolean?>(null)
+    val liked: StateFlow<Boolean?> = _liked
+
+    init {
+        viewModelScope.launch {
+            remote.playback.map { it.track?.uri }.distinctUntilChanged().collect { uri ->
+                _liked.value = null
+                if (uri != null) _liked.value = library.isLiked(uri)
+            }
+        }
+    }
+
+    fun toggleLike() {
+        val uri = remote.playback.value.track?.uri ?: return
+        val target = !(_liked.value ?: return)
+        _liked.value = target // show it at once; put it back if Spotify says no
+        viewModelScope.launch {
+            val problem = library.setLiked(uri, target)
+            if (problem != null) {
+                if (remote.playback.value.track?.uri == uri) _liked.value = !target
+                remote.notify(problem)
+            }
+        }
+    }
+
 
     /** App-wide monochrome (also in App settings); the visualizer's gear panel has the same switch. */
     val monochrome: StateFlow<Boolean> = appPrefs.settings.map { it.monochrome }
@@ -45,6 +74,7 @@ class NowPlayingViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.spectra.player.data.lyrics.Lyrics.None)
 
     val playback = remote.playback
+    val messages = remote.messages
     val artwork = remote.artwork
     val spectrum = visualizer.spectrum
     val mode = visualizer.mode

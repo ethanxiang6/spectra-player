@@ -87,4 +87,5 @@ class AppContainer(context: Context) {
     val visualizer = VisualizerController(library, appContext)
     val visualizerPrefs = VisualizerPrefs(appContext)
     val appPrefs = com.spectra.player.ui.theme.AppPrefs(appContext)
+    val updates = com.spectra.player.data.UpdateChecker(json)
 }

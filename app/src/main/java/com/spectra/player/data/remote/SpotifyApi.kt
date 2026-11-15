@@ -87,4 +87,39 @@ interface SpotifyApi {
 
     @PUT("v1/me/player/seek")
     suspend fun seek(@Query("position_ms") positionMs: Long): Response<Unit>
+
+    @GET("v1/albums/{id}/tracks")
+    suspend fun albumTracks(
+        @Path("id") albumId: String,
+        @Query("limit") limit: Int,
+        @Query("offset") offset: Int,
+    ): PagingDto<TrackDto>
+
+    @GET("v1/artists/{id}/albums")
+    suspend fun artistAlbums(
+        @Path("id") artistId: String,
+        @Query("include_groups") groups: String,
+        @Query("limit") limit: Int,
+        @Query("offset") offset: Int,
+    ): PagingDto<AlbumDto>
+
+    // Liked songs. The library endpoints (Feb 2026) take URIs; the older ones take track IDs and
+    // are kept as a fallback. All need the user-library-modify / -read scopes.
+    @PUT("v1/me/library")
+    suspend fun saveToLibrary(@Query("uris") uris: String): Response<Unit>
+
+    @retrofit2.http.DELETE("v1/me/library")
+    suspend fun removeFromLibrary(@Query("uris") uris: String): Response<Unit>
+
+    @GET("v1/me/library/contains")
+    suspend fun libraryContains(@Query("uris") uris: String): Response<List<Boolean>>
+
+    @PUT("v1/me/tracks")
+    suspend fun saveTracks(@Query("ids") ids: String): Response<Unit>
+
+    @retrofit2.http.DELETE("v1/me/tracks")
+    suspend fun removeTracks(@Query("ids") ids: String): Response<Unit>
+
+    @GET("v1/me/tracks/contains")
+    suspend fun tracksContain(@Query("ids") ids: String): Response<List<Boolean>>
 }

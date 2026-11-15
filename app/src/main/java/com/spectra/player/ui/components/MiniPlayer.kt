@@ -69,6 +69,7 @@ fun MiniPlayer(
     val track = playback.track ?: return
     val fraction = rememberProgress(playback)
     val accent = Chart.accent
+    val slider = Chart.slider
     val line = Chart.line
 
     Box(
@@ -93,7 +94,7 @@ fun MiniPlayer(
                         val r = size.minDimension / 2 - 1.dp.toPx()
                         drawCircle(line, r, c, style = Stroke(1.dp.toPx()))
                         val a = (fraction.value * 2 * PI - PI / 2).toFloat()
-                        drawChartStar(Offset(c.x + cos(a) * r, c.y + sin(a) * r), 2.dp.toPx(), accent, accent)
+                        drawChartStar(Offset(c.x + cos(a) * r, c.y + sin(a) * r), 2.dp.toPx(), slider, slider)
                     },
                 contentAlignment = Alignment.Center,
             ) {
@@ -176,7 +177,7 @@ private fun rememberProgress(playback: PlaybackState): androidx.compose.runtime.
 /** Hairline with small ticks, like the scale on an instrument; the played part in the accent. */
 @Composable
 private fun ProgressScale(fraction: androidx.compose.runtime.State<Float>, modifier: Modifier = Modifier) {
-    val accent = Chart.accent
+    val accent = Chart.slider
     val line = Chart.line
     Box(
         modifier

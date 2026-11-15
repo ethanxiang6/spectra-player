@@ -83,3 +83,23 @@ fun Long.formatTime(): String {
     val totalSeconds = (this / 1000).coerceAtLeast(0)
     return "%d:%02d".format(totalSeconds / 60, totalSeconds % 60)
 }
+
+
+/** What a catalogue search can return besides songs. */
+enum class HitKind(val label: String, val apiType: String) {
+    SONGS("Songs", "track"),
+    ARTISTS("Artists", "artist"),
+    ALBUMS("Albums", "album"),
+    PLAYLISTS("Playlists", "playlist"),
+}
+
+/** An artist, album or playlist in search results (or an album on an artist's page). */
+data class Hit(
+    val kind: HitKind,
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val imageUrl: String?,
+    val owner: String = "",
+    val trackCount: Int? = null,
+)

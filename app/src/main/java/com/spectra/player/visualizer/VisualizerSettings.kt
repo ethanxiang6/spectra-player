@@ -15,6 +15,8 @@ enum class Backdrop(val label: String) {
     OCEAN("Deep ocean"),
     ALBUM("Album art"),
     BLACK("Black"),
+    /** Colours picked by the user (App settings, Custom colours). */
+    CUSTOM("Custom"),
 }
 
 /** Everything the user can customise on the visualizer screen. */

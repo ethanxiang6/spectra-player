@@ -14,6 +14,13 @@ data class AppSettings(
     val icon: String = AppIcons.DEFAULT,
     /** Black and white everywhere, on true black (AMOLED). Overrides the theme while on. */
     val monochrome: Boolean = false,
+    /** Colours of the Custom theme, and palettes saved under a name. */
+    val custom: CustomPalette = CustomPalette(),
+    val presets: List<PalettePreset> = emptyList(),
+    /** Open the visualizer after this many seconds without a touch while music plays; 0 = never. */
+    val autoVisualizerSec: Int = 0,
+    /** Release tag the user chose to skip in the update prompt. */
+    val skippedUpdate: String = "",
 ) {
     companion object {
         /** Album art only makes sense on the visualizer. */
@@ -34,6 +41,10 @@ class AppPrefs(context: Context) {
             .putBoolean(KEY_STARS, next.stars)
             .putString(KEY_ICON, next.icon)
             .putBoolean(KEY_MONO, next.monochrome)
+            .putString(KEY_CUSTOM, next.custom.encode())
+            .putString(KEY_PRESETS, PalettePreset.encodeAll(next.presets))
+            .putInt(KEY_AUTO_VIS, next.autoVisualizerSec)
+            .putString(KEY_SKIPPED, next.skippedUpdate)
             .apply()
     }
 
@@ -47,6 +58,10 @@ class AppPrefs(context: Context) {
             stars = prefs.getBoolean(KEY_STARS, d.stars),
             icon = icon,
             monochrome = prefs.getBoolean(KEY_MONO, d.monochrome),
+            custom = CustomPalette.decode(prefs.getString(KEY_CUSTOM, null)) ?: d.custom,
+            presets = PalettePreset.decodeAll(prefs.getString(KEY_PRESETS, null)),
+            autoVisualizerSec = prefs.getInt(KEY_AUTO_VIS, d.autoVisualizerSec),
+            skippedUpdate = prefs.getString(KEY_SKIPPED, null) ?: d.skippedUpdate,
         )
     }
 
@@ -55,5 +70,9 @@ class AppPrefs(context: Context) {
         const val KEY_STARS = "stars"
         const val KEY_ICON = "icon"
         const val KEY_MONO = "monochrome"
+        const val KEY_CUSTOM = "custom_palette"
+        const val KEY_PRESETS = "palette_presets"
+        const val KEY_AUTO_VIS = "auto_visualizer_sec"
+        const val KEY_SKIPPED = "skipped_update"
     }
 }

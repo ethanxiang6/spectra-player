@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -205,6 +206,11 @@ class SpotifyRemoteManager(
     /** One-off messages for a snackbar (e.g. "Premium required"). */
     val messages: SharedFlow<String> = _messages.asSharedFlow()
 
+    /** Shows a one-off message in whichever page is open. */
+    fun notify(message: String) {
+        _messages.tryEmit(message)
+    }
+
     /**
      * The first connection needs the user's approval, which the Spotify app shows in its own
      * screen. Recent Android versions block that screen when Spotify isn't visible ("Background
@@ -369,24 +375,90 @@ class SpotifyRemoteManager(
      */
     fun play(uri: String, hint: NowPlayingTrack? = null, context: PlayContext? = null) {
         if (hint != null) showProvisional(hint)
-        val web = webPlayback
-        if (context != null && web != null) {
-            // Start the list *at this exact song* (by URI). App Remote can only start a list by
-            // position, and Spotify's order of e.g. Liked Songs can differ from ours.
-            scope.launch {
-                val reason = web.play(uri, context)
-                if (reason == null) {
-                    keepInsideListViaWeb(web)
-                    delay(800)
-                    refreshFromWeb()
-                } else {
-                    Log.w(TAG, "Web API context play failed: $reason")
-                    playWithAppRemote(uri, context, webTried = true)
+        playJob?.cancel()
+        playJob = scope.launch {
+            // Spotify may not be running at all (Spectra opened first). Connecting App Remote
+            // starts it; give that a moment so the phone is ready to take the play request.
+            if (liveRemote() == null && _connection.value != Connection.NeedsApproval) {
+                connect(force = true)
+                kotlinx.coroutines.withTimeoutOrNull(WAKE_WAIT_MS) {
+                    connection.first { it != Connection.Connecting && it != Connection.Disconnected }
                 }
             }
-            return
+            val web = webPlayback
+            var started = false
+            if (context != null && web != null) {
+                // Start the list *at this exact song* (by URI). App Remote can only start a list by
+                // position, and Spotify's order of e.g. Liked Songs can differ from ours.
+                val reason = web.play(uri, context)
+                if (reason == null) {
+                    // Spotify answers "ok" even when nothing starts (the app was asleep), so check.
+                    started = confirmPlaying(uri, hint?.name, CONFIRM_WEB_MS)
+                    if (started) {
+                        keepInsideListViaWeb(web)
+                        refreshFromWeb()
+                    } else {
+                        Log.w(TAG, "Web API said ok but the song didn't start; using App Remote")
+                    }
+                } else {
+                    Log.w(TAG, "Web API context play failed: $reason")
+                }
+            }
+            if (!started) {
+                playWithAppRemote(uri, context, webTried = context != null && web != null)
+                if (!confirmPlaying(uri, hint?.name, CONFIRM_REMOTE_MS, anySong = true)) playDidNotStart(uri)
+            }
         }
-        playWithAppRemote(uri, context, webTried = false)
+    }
+
+    private var playJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Waits until Spotify really reports the song as playing. App Remote is asked when it's
+     * connected (it speaks for this phone); otherwise the Web API. [anySong] accepts any song
+     * playing (a list started by position may land on a neighbour, which is corrected separately).
+     */
+    private suspend fun confirmPlaying(uri: String, name: String?, timeoutMs: Long, anySong: Boolean = false): Boolean {
+        val deadline = SystemClock.elapsedRealtime() + timeoutMs
+        while (SystemClock.elapsedRealtime() < deadline) {
+            delay(CONFIRM_POLL_MS)
+            val r = liveRemote()
+            if (r != null) {
+                val state = kotlinx.coroutines.withTimeoutOrNull(1_500L) { appRemoteState(r) }
+                val track = state?.track
+                if (state != null && track != null && !state.isPaused &&
+                    (anySong || track.uri == uri || (name != null && track.name.equals(name, ignoreCase = true)))
+                ) return true
+            } else {
+                val state = webPlayback?.currentlyPlaying()
+                val track = state?.track
+                if (state != null && track != null && state.isPlaying &&
+                    (anySong || track.uri == uri || (name != null && track.name.equals(name, ignoreCase = true)))
+                ) return true
+            }
+        }
+        return false
+    }
+
+    private suspend fun appRemoteState(r: SpotifyAppRemote): PlayerState? =
+        kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+            r.playerApi.playerState
+                .setResultCallback { if (cont.isActive) cont.resumeWith(Result.success(it)) }
+                .setErrorCallback { if (cont.isActive) cont.resumeWith(Result.success(null)) }
+        }
+
+    /** The song never started: stop showing it as playing and say what to do. */
+    private fun playDidNotStart(uri: String) {
+        val pb = _playback.value
+        if (pb.track?.uri == uri && pb.isPlaying && !appRemoteStateSeen) {
+            _playback.value = pb.copy(isPlaying = false, positionMs = 0, capturedAtElapsedMs = SystemClock.elapsedRealtime())
+        }
+        _messages.tryEmit(
+            when (_connection.value) {
+                Connection.Connected -> "Spotify didn't start the song. Try it again."
+                else -> "Spotify isn't answering yet. Tap \"Approve in Spotify\" at the top, then try again."
+            },
+        )
     }
 
     private fun playWithAppRemote(uri: String, context: PlayContext?, webTried: Boolean) {
@@ -740,6 +812,10 @@ class SpotifyRemoteManager(
         const val OVERDUE_GRACE_MS = 1_500L
         const val REPEAT_ALL = 2 // com.spotify.protocol.types.Repeat.ALL
         const val VERIFY_DELAY_MS = 1_500L
+        const val WAKE_WAIT_MS = 4_000L        // for Spotify to start when it wasn't running
+        const val CONFIRM_POLL_MS = 500L
+        const val CONFIRM_WEB_MS = 3_000L
+        const val CONFIRM_REMOTE_MS = 7_000L
         const val SEEK_GUARD_MS = 2_500L
         const val SEEK_TOLERANCE_MS = 1_500L
     }

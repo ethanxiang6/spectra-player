@@ -6,7 +6,9 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.lerp
+import com.spectra.player.ui.nowplaying.Dusk
 import com.spectra.player.ui.nowplaying.look
+import androidx.compose.ui.graphics.luminance
 import com.spectra.player.visualizer.Backdrop
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -78,6 +80,7 @@ fun SpectraTheme(
     MaterialTheme(
         colorScheme = when {
             monochrome -> MonochromeColors
+            theme == Backdrop.CUSTOM -> Dusk.palette.let { p -> remember(p) { schemeForCustom(p) } }
             theme != null -> remember(theme) { schemeFor(theme) }
             else -> SpectraDarkColors
         },
@@ -155,6 +158,50 @@ private fun schemeFor(theme: Backdrop): androidx.compose.material3.ColorScheme {
         surfaceContainerHighest = tint(lerp(base, mid, 0.6f), 0.12f),
         outline = Color(0xFF938EAE),
         outlineVariant = tint(base, 0.18f),
+        error = Color(0xFFFFB4AB),
+        onError = Color(0xFF690005),
+        errorContainer = Color(0xFF93000A),
+        onErrorContainer = Color(0xFFFFDAD6),
+    )
+}
+
+/** The Custom theme: every role comes straight from the colours the user picked. */
+private fun schemeForCustom(p: CustomPalette): androidx.compose.material3.ColorScheme {
+    val top = Color(p.skyTop)
+    val mid = lerp(top, Color(p.skyBottom), 0.5f)
+    val text = Color(p.text)
+    val buttons = Color(p.buttons)
+    val sliders = Color(p.sliders)
+    val bars = Color(p.bars2)
+    // Whatever reads best on top of a filled button.
+    fun on(c: Color) = if (c.luminance() > 0.45f) Color.Black else Color.White
+    fun tint(c: Color, amount: Float) = lerp(c, text, amount)
+    return darkColorScheme(
+        primary = buttons,
+        onPrimary = on(buttons),
+        primaryContainer = lerp(top, buttons, 0.35f),
+        onPrimaryContainer = text,
+        secondary = sliders,
+        onSecondary = on(sliders),
+        secondaryContainer = lerp(top, sliders, 0.3f),
+        onSecondaryContainer = text,
+        tertiary = bars,
+        onTertiary = on(bars),
+        tertiaryContainer = lerp(top, bars, 0.3f),
+        onTertiaryContainer = text,
+        background = Color.Transparent,
+        onBackground = text,
+        surface = mid,
+        onSurface = text,
+        surfaceVariant = tint(mid, 0.08f),
+        onSurfaceVariant = lerp(mid, text, 0.72f),
+        surfaceContainerLowest = top.copy(alpha = 0.88f),
+        surfaceContainerLow = tint(top, 0.03f).copy(alpha = 0.9f),
+        surfaceContainer = tint(mid, 0.05f).copy(alpha = 0.93f),
+        surfaceContainerHigh = tint(mid, 0.08f).copy(alpha = 0.95f),
+        surfaceContainerHighest = tint(mid, 0.12f),
+        outline = lerp(mid, text, 0.5f),
+        outlineVariant = tint(top, 0.18f),
         error = Color(0xFFFFB4AB),
         onError = Color(0xFF690005),
         errorContainer = Color(0xFF93000A),

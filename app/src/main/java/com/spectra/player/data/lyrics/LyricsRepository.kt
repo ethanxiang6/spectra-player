@@ -19,6 +19,9 @@ data class LyricLine(val timeMs: Long, val text: String)
 sealed interface Lyrics {
     data object None : Lyrics
     data class Synced(val lines: List<LyricLine>) : Lyrics
+
+    /** Lyrics without timings: shown by estimating the place from how far the song is. */
+    data class Plain(val lines: List<String>) : Lyrics
 }
 
 /**
@@ -36,6 +39,7 @@ class LyricsRepository(
         val duration: Double? = null,
         val instrumental: Boolean = false,
         @SerialName("syncedLyrics") val synced: String? = null,
+        @SerialName("plainLyrics") val plain: String? = null,
     )
 
     private val cache = ConcurrentHashMap<String, Lyrics>()
@@ -64,9 +68,11 @@ class LyricsRepository(
             .addQueryParameter("album_name", track.album)
             .addQueryParameter("duration", Math.round(seconds).toString())
             .build()
+        var plain: Lyrics.Plain? = null
         get(exact.toString())?.let { body ->
             val dto = json.decodeFromString<LrcLibDto>(body)
             parse(dto.synced)?.let { return it }
+            plain = parsePlain(dto.plain)
         }
 
         // 2. Search by title and artist; take the closest length that has synced lyrics.
@@ -74,12 +80,13 @@ class LyricsRepository(
             .addQueryParameter("track_name", track.name)
             .addQueryParameter("artist_name", artist)
             .build()
-        val body = get(search.toString()) ?: return Lyrics.None
-        val best = json.decodeFromString<List<LrcLibDto>>(body)
-            .filter { !it.synced.isNullOrBlank() }
+        val body = get(search.toString()) ?: return plain ?: Lyrics.None
+        val close = json.decodeFromString<List<LrcLibDto>>(body)
             .filter { it.duration == null || seconds <= 0 || abs(it.duration - seconds) < 4 }
-            .minByOrNull { abs((it.duration ?: seconds) - seconds) }
-        return parse(best?.synced) ?: Lyrics.None
+            .sortedBy { abs((it.duration ?: seconds) - seconds) }
+        parse(close.firstOrNull { !it.synced.isNullOrBlank() }?.synced)?.let { return it }
+        // No timed lyrics anywhere: fall back to plain text.
+        return plain ?: close.firstNotNullOfOrNull { parsePlain(it.plain) } ?: Lyrics.None
     }
 
     private fun get(url: String): String? {
@@ -96,6 +103,25 @@ class LyricsRepository(
     companion object {
         private const val BASE = "https://lrclib.net"
         private val TAG = Regex("""\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?]""")
+
+        /** Plain lyrics as non-empty lines, or null when there are too few to be worth showing. */
+        fun parsePlain(text: String?): Lyrics.Plain? {
+            val lines = text.orEmpty().lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList()
+            return if (lines.size >= 4) Lyrics.Plain(lines) else null
+        }
+
+        /**
+         * Which plain line to show at [positionMs]: lines are spread evenly over the middle of the
+         * song (singing rarely starts in the first seconds or runs to the very end).
+         */
+        fun plainIndex(lineCount: Int, positionMs: Long, durationMs: Long): Int {
+            if (lineCount == 0 || durationMs <= 0) return -1
+            val start = durationMs * 0.06f
+            val end = durationMs * 0.94f
+            if (positionMs < start) return -1
+            val f = ((positionMs - start) / (end - start)).coerceIn(0f, 0.9999f)
+            return (f * lineCount).toInt()
+        }
 
         /** Parses LRC text ("[mm:ss.xx] line"; a line may carry several timestamps). */
         fun parse(lrc: String?): Lyrics.Synced? {

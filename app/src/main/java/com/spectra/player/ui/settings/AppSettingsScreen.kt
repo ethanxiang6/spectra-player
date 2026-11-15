@@ -26,6 +26,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.foundation.horizontalScroll
+import com.spectra.player.ui.chart.ChartChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -68,6 +71,7 @@ fun AppSettingsScreen(
     premium: PremiumStatus,
     onSignOut: () -> Unit,
     onBack: () -> Unit,
+    onEditColors: () -> Unit = {},
 ) {
     val settings by prefs.settings.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -79,6 +83,7 @@ fun AppSettingsScreen(
         onIcon = { AppIcons.apply(context, it) },
         onSignOut = onSignOut,
         onBack = onBack,
+        onEditColors = onEditColors,
     )
 }
 
@@ -91,6 +96,7 @@ fun AppSettingsContent(
     onIcon: (String) -> Unit,
     onSignOut: () -> Unit,
     onBack: () -> Unit,
+    onEditColors: () -> Unit = {},
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -150,6 +156,12 @@ fun AppSettingsContent(
                 }
             }
             Caption("The sky and colours behind every page except the visualizer.")
+            ChartButton(
+                "Edit custom colours",
+                onClick = onEditColors,
+                icon = Icons.Rounded.Palette,
+                modifier = Modifier.padding(start = 20.dp, bottom = 10.dp),
+            )
             ChartSwitchRow("Stars in the background", settings.stars, onChange = { on -> onUpdate { it.copy(stars = on) } })
 
             Section("App icon")
@@ -201,11 +213,34 @@ fun AppSettingsContent(
             )
 
             Section("Visualizer")
+            Text(
+                "Open by itself",
+                style = MaterialTheme.typography.titleMedium,
+                color = Chart.ink,
+                modifier = Modifier.padding(horizontal = 20.dp),
+            )
+            Caption("While music is playing, the visualizer opens after the screen hasn't been touched for this long.")
+            Row(
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AutoOpenChoices.forEach { (seconds, label) ->
+                    ChartChip(
+                        label,
+                        selected = settings.autoVisualizerSec == seconds,
+                        onClick = { onUpdate { it.copy(autoVisualizerSec = seconds) } },
+                    )
+                }
+            }
             Caption("The visualizer has its own settings. Open it, tap the screen, then the gear.")
             Spacer(Modifier.height(40.dp))
         }
     }
 }
+
+private val AutoOpenChoices = listOf(0 to "Off", 15 to "15 s", 30 to "30 s", 60 to "1 min", 120 to "2 min", 300 to "5 min")
 
 @Composable
 private fun Section(text: String) {

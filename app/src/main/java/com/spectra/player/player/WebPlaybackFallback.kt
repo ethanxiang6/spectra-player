@@ -18,14 +18,14 @@ class WebPlaybackFallback(private val api: SpotifyApi) {
     suspend fun play(uri: String, context: PlayContext? = null): String? = try {
         val devices = api.devices().devices.filter { it.id != null && !it.isRestricted }
         val model = Build.MODEL.orEmpty()
-        val target = devices.firstOrNull { it.isActive }
-            ?: devices.firstOrNull { it.type.equals("Smartphone", true) && model.isNotBlank() && it.name.contains(model, true) }
-            ?: devices.firstOrNull { it.type.equals("Smartphone", true) }
-            ?: devices.firstOrNull()
+        // Only ever start on a phone: with no phone listed, Spotify would start the song on
+        // whatever else is signed in (a computer, a speaker) and nothing would be heard here.
+        val phones = devices.filter { it.type.equals("Smartphone", true) }
+        val target = phones.firstOrNull { it.isActive }
+            ?: phones.firstOrNull { model.isNotBlank() && it.name.contains(model, true) }
+            ?: phones.firstOrNull()
         if (target == null) {
-            // No device listed: let Spotify pick the most recently used one.
-            val response = api.startPlayback(null, bodyFor(uri, context))
-            if (response.isSuccessful) null else describe(response.code(), response.errorBody()?.string())
+            "Spotify on this phone isn't listed yet"
         } else {
             val response = api.startPlayback(target.id, bodyFor(uri, context))
             if (response.isSuccessful) null else describe(response.code(), response.errorBody()?.string())

@@ -75,6 +75,7 @@ class ChartScreensTest {
 
     private fun shot(name: String, mono: Boolean = false, theme: Backdrop = Backdrop.EVENING, content: @Composable () -> Unit) {
         Dusk.mono = mono
+        Dusk.appCustom = !mono && theme == Backdrop.CUSTOM
         paparazzi.snapshot(name) {
             SpectraTheme(theme = theme, monochrome = mono) {
                 Box(Modifier.fillMaxSize()) {
@@ -157,6 +158,65 @@ class ChartScreensTest {
             onLoadMore = {}, onTogglePlay = {}, onNext = {},
             initialSearch = "he",
             autoFocus = false,
+        )
+    }
+
+    @Test fun login() = shot("login") {
+        com.spectra.player.ui.login.LoginScreen(state = com.spectra.player.auth.AuthState.SignedOut, onLogin = {})
+    }
+
+    @Test fun colors() = shot("colors", theme = Backdrop.CUSTOM) {
+        com.spectra.player.ui.settings.ColorEditorContent(
+            settings = AppSettings(theme = Backdrop.CUSTOM),
+            onUpdate = {}, onBack = {}, onPinIcon = {},
+            initialOpen = com.spectra.player.ui.theme.CustomPalette.Slot.BUTTONS,
+        )
+    }
+
+    @Test fun library_update_custom() = shot("library_update_custom", theme = Backdrop.CUSTOM) {
+        LibraryContent(
+            songs = ListState(songs, nextOffset = null, total = 214),
+            playlists = ListState(playlists.take(4), nextOffset = null),
+            profile = profile,
+            online = true,
+            connection = SpotifyRemoteManager.Connection.Connected,
+            playback = playback(),
+            artwork = null,
+            actions = LibraryActions(),
+            update = com.spectra.player.data.UpdateInfo("v9.9.0", "", null),
+        )
+    }
+
+    @Test fun liked_search() = shot("liked_search") {
+        LibraryContent(
+            songs = ListState(songs, nextOffset = null, total = 214),
+            playlists = ListState(playlists, nextOffset = null),
+            profile = profile,
+            online = true,
+            connection = SpotifyRemoteManager.Connection.Connected,
+            playback = playback(),
+            artwork = null,
+            actions = LibraryActions(),
+            initialLikedSearch = "o",
+        )
+    }
+
+    @Test fun search_albums() = shot("search_albums") {
+        val kind = com.spectra.player.data.HitKind.ALBUMS
+        SearchContent(
+            query = "past",
+            results = ListState(nextOffset = null),
+            playback = playback(),
+            artwork = null,
+            onQueryChange = {}, onBack = {}, onOpenNowPlaying = {}, onPlay = {}, onQueue = {},
+            onLoadMore = {}, onTogglePlay = {}, onNext = {},
+            autoFocus = false,
+            kind = kind,
+            hits = ListState(
+                listOf("Past Lives" to "sapientdream · 2022", "Past Life" to "Tame Impala · 2015", "Pastel" to "BoyWithUke · 2021")
+                    .mapIndexed { i, (t, sub) -> com.spectra.player.data.Hit(kind, "a$i", t, sub, null) },
+                nextOffset = null,
+            ),
         )
     }
 

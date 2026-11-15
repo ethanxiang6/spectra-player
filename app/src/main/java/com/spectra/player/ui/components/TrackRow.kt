@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.DropdownMenu
@@ -52,6 +54,9 @@ fun TrackRow(
     number: Int? = null,
     /** When set, a ⋮ menu offers "Add to queue". */
     onAddToQueue: (() -> Unit)? = null,
+    /** When set, the menu also offers adding to (or, with [liked], removing from) Liked songs. */
+    onLike: (() -> Unit)? = null,
+    liked: Boolean = false,
 ) {
     val title = if (isCurrent) Chart.accent else Chart.ink
     Row(
@@ -102,13 +107,13 @@ fun TrackRow(
             )
         }
         if (onAddToQueue != null) {
-            TrackMenu(onPlay = onClick, onAddToQueue = onAddToQueue)
+            TrackMenu(onPlay = onClick, onAddToQueue = onAddToQueue, onLike = onLike, liked = liked)
         }
     }
 }
 
 @Composable
-private fun TrackMenu(onPlay: () -> Unit, onAddToQueue: () -> Unit) {
+private fun TrackMenu(onPlay: () -> Unit, onAddToQueue: () -> Unit, onLike: (() -> Unit)?, liked: Boolean) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
@@ -131,6 +136,18 @@ private fun TrackMenu(onPlay: () -> Unit, onAddToQueue: () -> Unit) {
                     onAddToQueue()
                 },
             )
+            if (onLike != null) {
+                DropdownMenuItem(
+                    text = { Text(if (liked) "Remove from Liked songs" else "Add to Liked songs") },
+                    leadingIcon = {
+                        Icon(if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, contentDescription = null)
+                    },
+                    onClick = {
+                        open = false
+                        onLike()
+                    },
+                )
+            }
         }
     }
 }

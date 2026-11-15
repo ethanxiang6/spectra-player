@@ -20,6 +20,8 @@ object AuthConfig {
     val scopes = listOf(
         "user-read-private",
         "user-library-read",
+        // Liking and unliking songs.
+        "user-library-modify",
         "playlist-read-private",
         "playlist-read-collaborative",
         // Consent for the App Remote connection. Granting it here, in a window the user can see,

@@ -32,6 +32,9 @@ class MainActivity : ComponentActivity() {
             val appSettings by container.appPrefs.settings.collectAsState()
             androidx.compose.runtime.SideEffect {
                 com.spectra.player.ui.nowplaying.Dusk.mono = appSettings.monochrome
+                com.spectra.player.ui.nowplaying.Dusk.palette = appSettings.custom
+                com.spectra.player.ui.nowplaying.Dusk.appCustom =
+                    !appSettings.monochrome && appSettings.theme == com.spectra.player.visualizer.Backdrop.CUSTOM
             }
             SpectraTheme(theme = appSettings.theme, monochrome = appSettings.monochrome) {
                 SpectraRoot(

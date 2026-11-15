@@ -1,5 +1,7 @@
 package com.spectra.player.data
 
+import com.spectra.player.data.remote.AlbumDto
+import com.spectra.player.data.remote.ArtistDto
 import com.spectra.player.data.remote.AudioFeaturesDto
 import com.spectra.player.data.remote.ImageDto
 import com.spectra.player.data.remote.PlaylistDto
@@ -48,3 +50,38 @@ fun AudioFeaturesDto.toDomain() = AudioProfile(
     valence = valence,
     fromSpotify = true,
 )
+
+
+fun ArtistDto.toHit(): Hit? = id?.let {
+    Hit(HitKind.ARTISTS, it, name, "Artist", images.bestImage(160))
+}
+
+fun AlbumDto.toHit(): Hit? = id?.let {
+    val by = artists.orEmpty().joinToString(", ") { a -> a.name }
+    val year = releaseDate?.take(4)
+    Hit(
+        kind = HitKind.ALBUMS,
+        id = it,
+        title = name,
+        subtitle = listOfNotNull(by.takeIf { b -> b.isNotBlank() }, year).joinToString(" · "),
+        imageUrl = images.bestImage(),
+        owner = by,
+        trackCount = totalTracks,
+    )
+}
+
+fun PlaylistDto.toHit(): Hit {
+    val p = toDomain()
+    return Hit(
+        kind = HitKind.PLAYLISTS,
+        id = p.id,
+        title = p.name,
+        subtitle = listOfNotNull(
+            p.owner.takeIf { it.isNotBlank() }?.let { "by $it" },
+            p.trackCount?.let { if (it == 1) "1 song" else "$it songs" },
+        ).joinToString(" · "),
+        imageUrl = p.imageUrl,
+        owner = p.owner,
+        trackCount = p.trackCount,
+    )
+}

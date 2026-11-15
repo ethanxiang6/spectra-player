@@ -85,6 +85,7 @@ fun LibraryScreen(
     val connection by viewModel.connection.collectAsStateWithLifecycle()
     val playback by viewModel.playback.collectAsStateWithLifecycle()
     val artwork by viewModel.artwork.collectAsStateWithLifecycle()
+    val update by viewModel.availableUpdate.collectAsStateWithLifecycle()
 
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
@@ -99,7 +100,21 @@ fun LibraryScreen(
         playback = playback,
         artwork = artwork,
         snackbar = snackbar,
+        update = update,
         actions = LibraryActions(
+            like = viewModel::setLiked,
+            skipUpdate = viewModel::skipUpdate,
+            openUpdate = { info ->
+                // Hands the download to the phone's browser.
+                try {
+                    context.startActivity(
+                        android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(info.apkUrl ?: info.pageUrl))
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                } catch (e: Exception) {
+                    // No browser to open it with: nothing to do.
+                }
+            },
             openPlaylist = onOpenPlaylist,
             openNowPlaying = onOpenNowPlaying,
             openSearch = onOpenSearch,
@@ -136,6 +151,9 @@ class LibraryActions(
     val playLiked: (Boolean) -> Unit = {},
     val togglePlay: () -> Unit = {},
     val next: () -> Unit = {},
+    val like: (Track, Boolean) -> Unit = { _, _ -> },
+    val openUpdate: (com.spectra.player.data.UpdateInfo) -> Unit = {},
+    val skipUpdate: (com.spectra.player.data.UpdateInfo) -> Unit = {},
 )
 
 /** Playlists shown on the map before "Show all". */
@@ -153,11 +171,37 @@ fun LibraryContent(
     artwork: ImageBitmap?,
     actions: LibraryActions,
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
+    update: com.spectra.player.data.UpdateInfo? = null,
+    /** For screenshots: open with the Liked songs search showing this text. */
+    initialLikedSearch: String? = null,
 ) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var showAll by rememberSaveable { mutableStateOf(false) }
     val showOffline = !online || songs.fromCache
+    // Where the Liked songs heading sits in the list (to scroll to it).
+    val likedIndex = 4 + (if (showOffline) 1 else 0) + (if (update != null) 1 else 0)
+
+    // Search inside Liked songs.
+    var searching by rememberSaveable { mutableStateOf(initialLikedSearch != null) }
+    var query by rememberSaveable { mutableStateOf(initialLikedSearch.orEmpty()) }
+    val closeSearch: () -> Unit = {
+        searching = false
+        query = ""
+    }
+    // Back from the search: return to the Liked songs heading rather than the top of the page.
+    var wasSearching by remember { mutableStateOf(false) }
+    LaunchedEffect(searching) {
+        if (!searching && wasSearching) listState.scrollToItem(likedIndex)
+        wasSearching = searching
+    }
+    androidx.activity.compose.BackHandler(enabled = searching, onBack = closeSearch)
+    val matches = remember(songs.items, query) { TrackFilter.filter(songs.items, query) }
+    // Searching needs every liked song, so keep fetching pages while the search is open.
+    LaunchedEffect(searching, songs.items.size, songs.loading, songs.nextOffset, songs.error) {
+        if (searching && songs.nextOffset != null && !songs.loading && songs.error == null) actions.loadMoreSongs()
+    }
+    LaunchedEffect(searching, query) { if (searching) listState.scrollToItem(0) }
 
     // Keep fetching playlist pages so the map and its count are complete.
     LaunchedEffect(playlists.items.size, playlists.nextOffset, playlists.loading) {
@@ -168,6 +212,17 @@ fun LibraryContent(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            if (searching) {
+                ListSearchBar(
+                    query = query,
+                    onQueryChange = { query = it },
+                    onClose = closeSearch,
+                    autoFocus = initialLikedSearch == null,
+                    placeholder = "Search Liked songs",
+                )
+            }
+        },
         bottomBar = {
             MiniPlayer(
                 playback = playback,
@@ -189,6 +244,22 @@ fun LibraryContent(
                 contentPadding = PaddingValues(bottom = 24.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
+                if (searching) {
+                    searchItems(
+                        query = query,
+                        filtering = query.isNotBlank(),
+                        matches = matches,
+                        state = songs,
+                        playback = playback,
+                        onPlay = actions.play,
+                        onQueue = actions.queue,
+                        onLoadMore = actions.loadMoreSongs,
+                        onLike = { actions.like(it, false) },
+                        liked = true,
+                        listName = "your Liked songs",
+                    )
+                    return@LazyColumn
+                }
                 item(key = "header") {
                     ChartHeader(
                         profile = profile,
@@ -201,6 +272,20 @@ fun LibraryContent(
                 }
                 item(key = "banner") {
                     ConnectionBanner(connection, onRetry = actions.retryConnect, onApprove = actions.approveInSpotify)
+                }
+                if (update != null) {
+                    item(key = "update") {
+                        ChartNote(
+                            heading = "Update available",
+                            body = "Spectra ${update.tag} is out. This phone has ${com.spectra.player.BuildConfig.VERSION_NAME}.",
+                            tone = Chart.accent,
+                            modifier = Modifier.padding(top = 14.dp),
+                            actions = {
+                                TextButton(onClick = { actions.openUpdate(update) }) { Text("DOWNLOAD") }
+                                TextButton(onClick = { actions.skipUpdate(update) }) { Text("SKIP THIS ONE") }
+                            },
+                        )
+                    }
                 }
                 if (showOffline) {
                     item(key = "offline") {
@@ -222,10 +307,7 @@ fun LibraryContent(
                         showAll = showAll,
                         onToggleShowAll = { showAll = !showAll },
                         onOpen = actions.openPlaylist,
-                        onLiked = {
-                            val index = 4 + (if (showOffline) 1 else 0)
-                            scope.launch { listState.animateScrollToItem(index) }
-                        },
+                        onLiked = { scope.launch { listState.animateScrollToItem(likedIndex) } },
                         onRetry = actions.loadMorePlaylists,
                     )
                 }
@@ -250,6 +332,15 @@ fun LibraryContent(
                                 icon = Icons.Rounded.Shuffle,
                                 enabled = songs.items.isNotEmpty(),
                             )
+                            if (songs.items.isNotEmpty()) {
+                                Box(
+                                    Modifier
+                                        .size(40.dp)
+                                        .border(1.dp, Chart.line, Chart.corner)
+                                        .clickable(onClickLabel = "Search Liked songs") { searching = true },
+                                    contentAlignment = Alignment.Center,
+                                ) { Reticle(color = Chart.ink) }
+                            }
                         }
                     }
                 }
@@ -260,7 +351,11 @@ fun LibraryContent(
                     songs.items.isEmpty() -> item(key = "songs-empty") {
                         Quiet("Songs you like on Spotify show up here.")
                     }
-                    else -> trackItems(songs, playback, actions.loadMoreSongs, actions.play, actions.queue)
+                    else -> trackItems(
+                        songs, playback, actions.loadMoreSongs, actions.play, actions.queue,
+                        onLike = { actions.like(it, false) },
+                        liked = true,
+                    )
                 }
             }
         }
@@ -445,6 +540,8 @@ internal fun LazyListScope.trackItems(
     onLoadMore: () -> Unit,
     onPlay: (Int, Track) -> Unit,
     onQueue: (Track) -> Unit,
+    onLike: ((Track) -> Unit)? = null,
+    liked: Boolean = false,
 ) {
     itemsIndexed(state.items, key = { index, t -> "${index}_${t.uri}" }) { index, track ->
         TrackRow(
@@ -454,6 +551,8 @@ internal fun LazyListScope.trackItems(
             number = index + 1,
             onClick = { onPlay(index, track) },
             onAddToQueue = { onQueue(track) },
+            onLike = onLike?.let { like -> { like(track) } },
+            liked = liked,
         )
     }
     when {

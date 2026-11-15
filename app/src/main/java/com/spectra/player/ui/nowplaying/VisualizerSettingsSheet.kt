@@ -193,7 +193,7 @@ private fun MsSlider(label: String, valueMs: Int, range: IntRange, step: Int, on
             valueRange = range.first.toFloat()..range.last.toFloat(),
             colors = androidx.compose.material3.SliderDefaults.colors(
                 thumbColor = Dusk.Text,
-                activeTrackColor = Dusk.Lavender,
+                activeTrackColor = Dusk.Slider,
                 inactiveTrackColor = Color.White.copy(alpha = 0.18f),
             ),
         )
@@ -217,7 +217,7 @@ private fun SyncSlider(offsetMs: Int, onChange: (Int) -> Unit) {
             valueRange = -200f..400f,
             colors = androidx.compose.material3.SliderDefaults.colors(
                 thumbColor = Dusk.Text,
-                activeTrackColor = Dusk.Lavender,
+                activeTrackColor = Dusk.Slider,
                 inactiveTrackColor = Color.White.copy(alpha = 0.18f),
             ),
         )

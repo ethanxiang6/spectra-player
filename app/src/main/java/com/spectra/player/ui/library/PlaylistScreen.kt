@@ -88,6 +88,8 @@ fun PlaylistScreen(
         onLoadMore = viewModel::loadMore,
         onTogglePlay = viewModel::togglePlayPause,
         onNext = viewModel::skipNext,
+        album = viewModel.isAlbum,
+        onLike = { viewModel.setLiked(it, true) },
     )
 }
 
@@ -109,6 +111,9 @@ fun PlaylistContent(
     onTogglePlay: () -> Unit,
     onNext: () -> Unit,
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
+    /** An album rather than a playlist (opened from search). */
+    album: Boolean = false,
+    onLike: ((Track) -> Unit)? = null,
     /** For screenshots: open with the search already showing this text. */
     initialSearch: String? = null,
     autoFocus: Boolean = true,
@@ -140,7 +145,13 @@ fun PlaylistContent(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             if (searching) {
-                PlaylistSearchBar(query = query, onQueryChange = { query = it }, onClose = closeSearch, autoFocus = autoFocus)
+                ListSearchBar(
+                    query = query,
+                    onQueryChange = { query = it },
+                    onClose = closeSearch,
+                    autoFocus = autoFocus,
+                    placeholder = if (album) "Search this album" else "Search this playlist",
+                )
             } else {
                 Row(
                     Modifier.fillMaxWidth().statusBarsPadding().padding(start = 4.dp, top = 4.dp, end = 4.dp),
@@ -149,7 +160,12 @@ fun PlaylistContent(
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = Chart.ink)
                     }
-                    Text("PLAYLIST", style = MaterialTheme.typography.labelMedium, color = Chart.dim, modifier = Modifier.weight(1f))
+                    Text(
+                        if (album) "ALBUM" else "PLAYLIST",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Chart.dim,
+                        modifier = Modifier.weight(1f),
+                    )
                     IconButton(onClick = { searching = true }, enabled = state.items.isNotEmpty()) {
                         Reticle(color = if (state.items.isNotEmpty()) Chart.ink else Chart.dim.copy(alpha = 0.4f), size = 22.dp)
                     }
@@ -182,6 +198,8 @@ fun PlaylistContent(
                     onPlay = onPlay,
                     onQueue = onQueue,
                     onLoadMore = onLoadMore,
+                    onLike = onLike,
+                    listName = if (album) "this album" else "this playlist",
                 )
                 return@LazyColumn
             }
@@ -203,14 +221,19 @@ fun PlaylistContent(
             } else if (state.items.isEmpty() && state.nextOffset == null) {
                 item(key = "empty") {
                     Text(
-                        "This playlist has no songs yet.",
+                        if (album) "This album has no songs." else "This playlist has no songs yet.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Chart.dim,
                         modifier = Modifier.padding(20.dp),
                     )
                 }
             } else {
-                trackItems(state, playback, onLoadMore, onPlay, onQueue)
+                if (state.fromCache) {
+                    item(key = "offline") {
+                        com.spectra.player.ui.chart.ChartNote("Offline", "Showing the songs saved the last time you opened this playlist.")
+                    }
+                }
+                trackItems(state, playback, onLoadMore, onPlay, onQueue, onLike = onLike)
             }
         }
     }
@@ -218,7 +241,13 @@ fun PlaylistContent(
 
 /** Search field that replaces the top bar while searching inside the playlist. */
 @Composable
-private fun PlaylistSearchBar(query: String, onQueryChange: (String) -> Unit, onClose: () -> Unit, autoFocus: Boolean) {
+internal fun ListSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onClose: () -> Unit,
+    autoFocus: Boolean,
+    placeholder: String = "Search this playlist",
+) {
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     if (autoFocus) LaunchedEffect(Unit) { focus.requestFocus() }
@@ -237,7 +266,7 @@ private fun PlaylistSearchBar(query: String, onQueryChange: (String) -> Unit, on
         Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
             val textStyle = MaterialTheme.typography.headlineSmall.copy(color = Chart.ink)
             if (query.isEmpty()) {
-                Text("Search this playlist", style = textStyle, color = Chart.dim.copy(alpha = 0.6f), maxLines = 1)
+                Text(placeholder, style = textStyle, color = Chart.dim.copy(alpha = 0.6f), maxLines = 1)
             }
             BasicTextField(
                 value = query,
@@ -262,7 +291,7 @@ private fun PlaylistSearchBar(query: String, onQueryChange: (String) -> Unit, on
  * Rows while searching: every song until something is typed, then the matches. Each match keeps
  * its catalogue number and plays in its own place in the playlist.
  */
-private fun LazyListScope.searchItems(
+internal fun LazyListScope.searchItems(
     query: String,
     filtering: Boolean,
     matches: List<IndexedValue<Track>>,
@@ -271,6 +300,9 @@ private fun LazyListScope.searchItems(
     onPlay: (Int, Track) -> Unit,
     onQueue: (Track) -> Unit,
     onLoadMore: () -> Unit,
+    onLike: ((Track) -> Unit)? = null,
+    liked: Boolean = false,
+    listName: String = "this playlist",
 ) {
     val stillLoading = state.nextOffset != null && state.error == null
     item(key = "search-rule") {
@@ -289,6 +321,8 @@ private fun LazyListScope.searchItems(
             number = index + 1,
             onClick = { onPlay(index, track) },
             onAddToQueue = { onQueue(track) },
+            onLike = onLike?.let { like -> { like(track) } },
+            liked = liked,
         )
     }
     when {
@@ -297,7 +331,7 @@ private fun LazyListScope.searchItems(
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 LoadingFooter()
                 Text(
-                    "LOADING THE REST OF THE PLAYLIST",
+                    "LOADING THE REST OF THE LIST",
                     style = MaterialTheme.typography.labelSmall,
                     color = Chart.dim,
                 )
@@ -305,7 +339,7 @@ private fun LazyListScope.searchItems(
         }
         filtering && matches.isEmpty() -> item(key = "search-empty") {
             Text(
-                "No song in this playlist matches \u201c${query.trim()}\u201d.",
+                "No song in $listName matches \u201c${query.trim()}\u201d.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Chart.dim,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),

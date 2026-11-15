@@ -52,6 +52,8 @@ import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -125,6 +127,7 @@ fun NowPlayingScreen(
     val spectrum = viewModel.spectrum.collectAsStateWithLifecycle() // read only while drawing
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val lyrics by viewModel.lyrics.collectAsStateWithLifecycle()
+    val liked by viewModel.liked.collectAsStateWithLifecycle()
     val monochrome by viewModel.monochrome.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
@@ -235,6 +238,12 @@ fun NowPlayingScreen(
                 }
             },
     ) {
+        // With the Custom background, the controls here take the custom colours too.
+        val custom = !Dusk.mono && settings.backdrop == Backdrop.CUSTOM
+        androidx.compose.runtime.DisposableEffect(custom) {
+            Dusk.vizCustom = custom
+            onDispose { Dusk.vizCustom = false }
+        }
         SkyBackdrop(
             backdrop = if (Dusk.mono) Backdrop.BLACK else settings.backdrop,
             showStars = settings.stars,
@@ -315,6 +324,33 @@ fun NowPlayingScreen(
                 onRepeat = { viewModel.toggleRepeat(); touched() },
                 onSeek = { viewModel.seekTo(it); touched() },
                 onScrub = touched,
+                liked = liked,
+                onLike = { viewModel.toggleLike(); touched() },
+            )
+        }
+
+        // One-off messages (for example when Spotify refuses a like).
+        var notice by remember { mutableStateOf<String?>(null) }
+        LaunchedEffect(Unit) {
+            viewModel.messages.collect {
+                notice = it
+            }
+        }
+        LaunchedEffect(notice) {
+            if (notice != null) {
+                delay(5_000)
+                notice = null
+            }
+        }
+        notice?.let { text ->
+            Text(
+                text,
+                style = TextStyle(color = Color.White, fontSize = 14.sp, lineHeight = 19.sp),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 20.dp, end = 20.dp, bottom = 150.dp)
+                    .background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
             )
         }
     }
@@ -387,12 +423,27 @@ private fun LyricsBlock(
     playback: PlaybackState,
     fontFamily: FontFamily?,
 ) {
-    val lines = (lyrics as? com.spectra.player.data.lyrics.Lyrics.Synced)?.lines.orEmpty()
+    val plain = (lyrics as? com.spectra.player.data.lyrics.Lyrics.Plain)?.lines
+    val lines = remember(lyrics) {
+        when (lyrics) {
+            is com.spectra.player.data.lyrics.Lyrics.Synced -> lyrics.lines
+            // Untimed lyrics: the times are unused, the place is estimated from the song's progress.
+            is com.spectra.player.data.lyrics.Lyrics.Plain -> lyrics.lines.map { com.spectra.player.data.lyrics.LyricLine(0, it) }
+            else -> emptyList()
+        }
+    }
     var index by remember(lines) { mutableIntStateOf(-1) }
     LaunchedEffect(lines, playback) {
         if (lines.isEmpty()) return@LaunchedEffect
         while (isActive) {
             val pos = playback.currentPosition()
+            if (plain != null) {
+                index = com.spectra.player.data.lyrics.LyricsRepository.plainIndex(
+                    plain.size, pos, playback.track?.durationMs ?: 0L,
+                )
+                delay(250)
+                continue
+            }
             // Last line whose start time has passed.
             var lo = 0
             var hi = lines.size - 1
@@ -435,7 +486,7 @@ private fun LyricsBlock(
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
                 )
-                if (next.isNotEmpty()) {
+                if (next.isNotEmpty() && (plain == null || current.isNotEmpty())) {
                     Spacer(Modifier.height(6.dp))
                     Text(
                         next,
@@ -523,6 +574,8 @@ private fun ControlsOverlay(
     onRepeat: () -> Unit,
     onSeek: (Long) -> Unit,
     onScrub: () -> Unit,
+    liked: Boolean? = null,
+    onLike: () -> Unit = {},
 ) {
     Box(Modifier.fillMaxSize()) {
         // Top: close + visualizer style.
@@ -541,6 +594,15 @@ private fun ControlsOverlay(
                     tint = Dusk.Text,
                     modifier = Modifier.size(32.dp),
                 )
+            }
+            if (liked != null) {
+                IconButton(onClick = onLike) {
+                    Icon(
+                        if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        contentDescription = if (liked) "Remove from Liked songs" else "Add to Liked songs",
+                        tint = if (liked) Dusk.Lavender else Dusk.Text,
+                    )
+                }
             }
             Spacer(Modifier.weight(1f))
             Text(
@@ -643,7 +705,7 @@ private fun SeekBar(playback: PlaybackState, onSeek: (Long) -> Unit, onScrub: ()
             enabled = duration > 0,
             colors = SliderDefaults.colors(
                 thumbColor = Dusk.Text,
-                activeTrackColor = Dusk.Lavender,
+                activeTrackColor = Dusk.Slider,
                 inactiveTrackColor = Color.White.copy(alpha = 0.18f),
             ),
         )

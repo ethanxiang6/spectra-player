@@ -15,9 +15,15 @@ import com.spectra.player.ui.search.SearchViewModel
 fun appViewModelFactory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
     initializer { AuthViewModel(container.authManager) }
     initializer {
-        LibraryViewModel(container.authManager, container.library, container.remote, container.network)
+        LibraryViewModel(
+            container.authManager, container.library, container.remote, container.network,
+            container.updates, container.appPrefs,
+        )
     }
     initializer { PlaylistViewModel(createSavedStateHandle(), container.library, container.remote) }
-    initializer { NowPlayingViewModel(container.remote, container.visualizer, container.visualizerPrefs, container.lyrics, container.appPrefs) }
+    initializer { NowPlayingViewModel(container.remote, container.visualizer, container.visualizerPrefs, container.lyrics, container.appPrefs, container.library) }
     initializer { SearchViewModel(container.library, container.remote) }
+    initializer {
+        com.spectra.player.ui.search.ArtistViewModel(createSavedStateHandle(), container.library, container.remote)
+    }
 }

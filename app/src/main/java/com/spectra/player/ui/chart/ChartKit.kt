@@ -61,6 +61,10 @@ object Chart {
     /** The one bright accent: the playing song, the main button. */
     val accent: Color @Composable get() = MaterialTheme.colorScheme.primary
 
+    /** Song progress: the accent, or the Custom theme's own slider colour. */
+    val slider: Color
+        @Composable get() = if (com.spectra.player.ui.nowplaying.Dusk.appCustom) MaterialTheme.colorScheme.secondary else accent
+
     val corner = RoundedCornerShape(2.dp)
 
     /** A dark soft halo behind label text, so lines that pass under a label don't hurt reading. */
@@ -223,6 +227,28 @@ fun ChartButton(
             Spacer(Modifier.width(8.dp))
         }
         Text(text.uppercase(), style = MaterialTheme.typography.labelLarge, color = content)
+    }
+}
+
+/** A small square-cornered choice: filled when selected. Used for search kinds and setting options. */
+@Composable
+fun ChartChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .height(32.dp)
+            .then(
+                if (selected) Modifier.background(Chart.accent, Chart.corner)
+                else Modifier.border(1.dp, Chart.line, Chart.corner),
+            )
+            .clickable(role = Role.Tab, onClick = onClick)
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text.uppercase(),
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else Chart.dim,
+        )
     }
 }
 
