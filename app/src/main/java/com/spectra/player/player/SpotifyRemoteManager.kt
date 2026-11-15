@@ -86,6 +86,10 @@ class SpotifyRemoteManager(
     private var seekGuard: SeekGuard? = null
     private var startedActivities = 0
 
+    /** Set while the home screen widget is live: keep following Spotify with no screen open. */
+    @Volatile
+    var backgroundWatch = false
+
     // Spotify's own sample connects with an Activity context; the "allow this app" sheet and the
     // service binding are more reliable that way than with the bare application context.
     private var foreground: WeakReference<Activity>? = null
@@ -122,7 +126,7 @@ class SpotifyRemoteManager(
             var tick = 0
             while (isActive) {
                 delay(WATCHDOG_TICK_MS)
-                if (startedActivities == 0) continue
+                if (startedActivities == 0 && !backgroundWatch) continue
                 tick++
                 val r = remote
                 if (r != null && !r.isConnected) {
@@ -805,6 +809,27 @@ class SpotifyRemoteManager(
             if (playing) api.pause() else api.resume()
         } else {
             webCommand { if (playing) it.pause() else it.resume() }
+        }
+    }
+
+    /**
+     * Play/pause for the home screen widget, where Spotify may be asleep: a play key wakes it and
+     * resumes its last song, which the ordinary resume can't do.
+     */
+    fun togglePlayPauseAnywhere() {
+        if (liveRemote() != null || _playback.value.isPlaying) {
+            togglePlayPause()
+            return
+        }
+        scope.launch {
+            val web = webPlayback
+            if ((web != null && web.phoneListed()) || !sendPlayKeyToSpotify()) {
+                togglePlayPause()
+                return@launch
+            }
+            connect()
+            delay(900)
+            refreshFromWeb(force = true)
         }
     }
 

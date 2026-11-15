@@ -52,26 +52,53 @@ class VisualizerController(
     val mode: StateFlow<VisualizerMode> = _mode.asStateFlow()
 
     private var job: Job? = null
+    private var lastJob: Job? = null
 
+    /** Who started the running loop: null for the visualizer screen, the widget service otherwise. */
+    @Volatile
+    private var owner: Any? = null
+
+    val running: Boolean get() = job?.isActive == true
+
+    /**
+     * Starts the frame loop. The visualizer screen ([owner] null) takes the loop over from a
+     * background owner such as the home screen widget; in every other case a running loop is kept.
+     */
     fun start(
         scope: CoroutineScope,
         playback: StateFlow<PlaybackState>,
         liveAllowed: StateFlow<Boolean>,
+        owner: Any? = null,
+        frameMs: Long = FRAME_MS,
     ) {
-        if (job?.isActive == true) return
-        job = scope.launch(Dispatchers.Default) { frameLoop(playback, liveAllowed) }
+        if (job?.isActive == true && (owner != null || this.owner == null)) return
+        this.owner = owner
+        // One audio tap at a time: let the previous loop release its tap before this one opens.
+        val previous = lastJob
+        previous?.cancel()
+        job = scope.launch(Dispatchers.Default) {
+            previous?.join()
+            frameLoop(playback, liveAllowed, frameMs)
+        }.also { lastJob = it }
     }
 
     fun stop() {
         job?.cancel()
         job = null
+        owner = null
         _spectrum.value = FloatArray(bandCount)
         _mode.value = VisualizerMode.IDLE
+    }
+
+    /** Stops the loop only when [owner] started it (the widget must not stop the screen's loop). */
+    fun stopIfOwnedBy(owner: Any) {
+        if (this.owner === owner) stop()
     }
 
     private suspend fun frameLoop(
         playback: StateFlow<PlaybackState>,
         liveAllowed: StateFlow<Boolean>,
+        frameMs: Long,
     ) = coroutineScope {
         // Track changes -> (re)load the audio profile used by the simulation.
         val profile = AtomicReference(AudioProfile.Default)
@@ -161,7 +188,7 @@ class VisualizerController(
                 }
 
                 _spectrum.value = smoother.step(target, dt)
-                delay(FRAME_MS)
+                delay(frameMs)
             }
         } finally {
             tap?.release()

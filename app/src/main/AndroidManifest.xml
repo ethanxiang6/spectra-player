@@ -10,6 +10,10 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
+    <!-- Home screen widget: stays in step with Spotify while music plays. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
     <!-- Package visibility (Android 11+): App Remote must see the Spotify app; Custom Tabs for login. -->
     <queries>
         <package android:name="com.spotify.music" />
@@ -149,5 +153,23 @@
         </activity-alias>
 
         <receiver android:name=".data.UpdateResultReceiver" android:exported="false" />
+
+        <!-- Home screen widget, 4 wide and 1 tall. -->
+        <receiver
+            android:name=".widget.SpectraWidget"
+            android:exported="true"
+            android:label="@string/widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_spectra_info" />
+        </receiver>
+
+        <service
+            android:name=".widget.WidgetService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
     </application>
 </manifest>

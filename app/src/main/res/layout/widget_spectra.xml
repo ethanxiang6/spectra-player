@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home screen widget, 4 wide and 1 tall: cover, song, visualizer bars (also the seek strip), controls. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/widget_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_bg" />
+
+    <ImageView
+        android:id="@+id/widget_outline"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_outline" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingEnd="4dp">
+
+        <ImageView
+            android:id="@+id/widget_art"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:contentDescription="Open Spectra"
+            android:scaleType="fitCenter" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="2dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <ImageView
+                android:id="@+id/widget_title"
+                android:layout_width="match_parent"
+                android:layout_height="20dp"
+                android:contentDescription="@null"
+                android:scaleType="fitStart" />
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="26dp"
+                android:layout_marginTop="2dp">
+
+                <ImageView
+                    android:id="@+id/widget_bars"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="@null"
+                    android:scaleType="fitXY" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal">
+                    <ImageView
+                        android:id="@+id/widget_seek_0"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_1"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_2"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_3"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_4"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_5"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_6"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_7"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_8"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_9"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                </LinearLayout>
+            </FrameLayout>
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/widget_prev"
+            android:layout_width="38dp"
+            android:layout_height="44dp"
+            android:background="@android:color/transparent"
+            android:contentDescription="Previous"
+            android:scaleType="center"
+            android:src="@drawable/ic_widget_prev" />
+        <ImageButton
+            android:id="@+id/widget_play"
+            android:layout_width="40dp"
+            android:layout_height="44dp"
+            android:background="@android:color/transparent"
+            android:contentDescription="Play or pause"
+            android:scaleType="center"
+            android:src="@drawable/ic_widget_play" />
+        <ImageButton
+            android:id="@+id/widget_next"
+            android:layout_width="38dp"
+            android:layout_height="44dp"
+            android:background="@android:color/transparent"
+            android:contentDescription="Next"
+            android:scaleType="center"
+            android:src="@drawable/ic_widget_next" />
+    </LinearLayout>
+</FrameLayout>

@@ -45,6 +45,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        // Bring the home screen widget (if there is one) back to life.
+        com.spectra.player.widget.WidgetService.startIfNeeded(this)
+    }
+
     // singleTask: the spectra://callback redirect from the Custom Tab arrives here.
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
