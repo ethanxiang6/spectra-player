@@ -152,6 +152,8 @@ class SpotifyRemoteManager(
         if (appRemoteStateSeen && !force) return
         val state = webPlayback?.currentlyPlaying() ?: return
         if (appRemoteStateSeen && !force) return
+        // Same rule as for App Remote reports: a tapped song that is still starting stays on screen.
+        awaited?.let { if (state.track?.uri != it.uri || !state.isPlaying) return }
         // Don't let a (slower) Web API answer undo a newer App Remote report of the same song.
         if (force && appRemoteStateSeen && state.track?.uri == _playback.value.track?.uri && !songOverdue()) return
         val previous = _playback.value
@@ -375,6 +377,9 @@ class SpotifyRemoteManager(
      */
     fun play(uri: String, hint: NowPlayingTrack? = null, context: PlayContext? = null) {
         if (hint != null) showProvisional(hint)
+        // Until this song is confirmed (or given up on), Spotify's reports about whatever it had
+        // loaded before must not replace the song that was just tapped.
+        awaited = Awaited(uri, SystemClock.elapsedRealtime() + AWAIT_MAX_MS)
         playJob?.cancel()
         playJob = scope.launch {
             // Spotify may not be running at all (Spectra opened first). Connecting App Remote
@@ -395,6 +400,7 @@ class SpotifyRemoteManager(
                     // Spotify answers "ok" even when nothing starts (the app was asleep), so check.
                     started = confirmPlaying(uri, hint?.name, CONFIRM_WEB_MS)
                     if (started) {
+                        playConfirmed()
                         keepInsideListViaWeb(web)
                         refreshFromWeb()
                     } else {
@@ -406,12 +412,22 @@ class SpotifyRemoteManager(
             }
             if (!started) {
                 playWithAppRemote(uri, context, webTried = context != null && web != null)
-                if (!confirmPlaying(uri, hint?.name, CONFIRM_REMOTE_MS, anySong = true)) playDidNotStart(uri)
+                if (confirmPlaying(uri, hint?.name, CONFIRM_REMOTE_MS, anySong = true)) playConfirmed() else playDidNotStart(uri)
             }
         }
     }
 
     private var playJob: kotlinx.coroutines.Job? = null
+
+    /** The song a play request is waiting for, and when to stop waiting. */
+    private class Awaited(val uri: String, val untilMs: Long)
+    private var awaited: Awaited? = null
+
+    /** The requested song is playing: show Spotify's real state again. */
+    private fun playConfirmed() {
+        awaited = null
+        liveRemote()?.let { fetchStateNow(it) }
+    }
 
     /**
      * Waits until Spotify really reports the song as playing. App Remote is asked when it's
@@ -420,21 +436,33 @@ class SpotifyRemoteManager(
      */
     private suspend fun confirmPlaying(uri: String, name: String?, timeoutMs: Long, anySong: Boolean = false): Boolean {
         val deadline = SystemClock.elapsedRealtime() + timeoutMs
+        var corrected = false
         while (SystemClock.elapsedRealtime() < deadline) {
             delay(CONFIRM_POLL_MS)
             val r = liveRemote()
             if (r != null) {
                 val state = kotlinx.coroutines.withTimeoutOrNull(1_500L) { appRemoteState(r) }
                 val track = state?.track
-                if (state != null && track != null && !state.isPaused &&
-                    (anySong || track.uri == uri || (name != null && track.name.equals(name, ignoreCase = true)))
-                ) return true
+                val isIt = track != null && (track.uri == uri || (name != null && track.name.equals(name, ignoreCase = true)))
+                if (state != null && track != null && !state.isPaused && isIt) return true
+                val settled = SystemClock.elapsedRealtime() - (deadline - timeoutMs) >= VERIFY_DELAY_MS
+                if (state != null && track != null && !state.isPaused && anySong && settled) {
+                    // A list started by position can land on a neighbouring song: ask once for
+                    // the tapped one by name, and accept what plays if that doesn't take.
+                    if (corrected) return true
+                    corrected = true
+                    Log.w(TAG, "Started ${track.uri} instead of $uri; playing the tapped song directly")
+                    r.playerApi.play(uri)
+                }
+                // Spotify loaded the song but left it paused (it does this when it was just
+                // started in the background): press play for the user.
+                if (state != null && isIt && state.isPaused) r.playerApi.resume()
             } else {
                 val state = webPlayback?.currentlyPlaying()
                 val track = state?.track
-                if (state != null && track != null && state.isPlaying &&
-                    (anySong || track.uri == uri || (name != null && track.name.equals(name, ignoreCase = true)))
-                ) return true
+                val isIt = track != null && (track.uri == uri || (name != null && track.name.equals(name, ignoreCase = true)))
+                if (state != null && track != null && state.isPlaying && (anySong || isIt)) return true
+                if (state != null && isIt && !state.isPlaying) webPlayback?.resume()
             }
         }
         return false
@@ -449,10 +477,13 @@ class SpotifyRemoteManager(
 
     /** The song never started: stop showing it as playing and say what to do. */
     private fun playDidNotStart(uri: String) {
+        awaited = null
         val pb = _playback.value
-        if (pb.track?.uri == uri && pb.isPlaying && !appRemoteStateSeen) {
+        if (pb.track?.uri == uri && pb.isPlaying) {
             _playback.value = pb.copy(isPlaying = false, positionMs = 0, capturedAtElapsedMs = SystemClock.elapsedRealtime())
         }
+        // Then whatever Spotify really has, so the bar and the visualizer agree with it.
+        liveRemote()?.let { fetchStateNow(it) }
         _messages.tryEmit(
             when (_connection.value) {
                 Connection.Connected -> "Spotify didn't start the song. Try it again."
@@ -574,6 +605,7 @@ class SpotifyRemoteManager(
     private fun liveRemote(): SpotifyAppRemote? = remote?.takeIf { it.isConnected }
 
     fun togglePlayPause() {
+        awaited = null
         val playing = _playback.value.isPlaying
         _playback.value = _playback.value.let {
             it.copy(isPlaying = !playing, positionMs = it.currentPosition(), capturedAtElapsedMs = SystemClock.elapsedRealtime())
@@ -598,6 +630,7 @@ class SpotifyRemoteManager(
     }
 
     fun skipNext() {
+        awaited = null
         restartPositionNow()
         val r = liveRemote()
         if (r != null) {
@@ -608,6 +641,7 @@ class SpotifyRemoteManager(
     }
 
     fun skipPrevious() {
+        awaited = null
         restartPositionNow()
         val r = liveRemote()
         if (r != null) {
@@ -695,6 +729,13 @@ class SpotifyRemoteManager(
     private fun handlePlayerState(state: PlayerState) {
         appRemoteStateSeen = true
         val t = state.track
+        // A play request is still being carried out: ignore reports about the song Spotify had
+        // before (often the last one played, paused) so the tapped song stays on screen.
+        val waiting = awaited
+        if (waiting != null) {
+            val arrived = t?.uri == waiting.uri && !state.isPaused
+            if (arrived || SystemClock.elapsedRealtime() > waiting.untilMs) awaited = null else return
+        }
         val knownUrl = _playback.value.track?.takeIf { it.uri == t?.uri }?.imageUrl
         val now = SystemClock.elapsedRealtime()
         val reported = state.playbackPosition
@@ -812,6 +853,7 @@ class SpotifyRemoteManager(
         const val OVERDUE_GRACE_MS = 1_500L
         const val REPEAT_ALL = 2 // com.spotify.protocol.types.Repeat.ALL
         const val VERIFY_DELAY_MS = 1_500L
+        const val AWAIT_MAX_MS = 20_000L       // longest a tapped song is held on screen unconfirmed
         const val WAKE_WAIT_MS = 4_000L        // for Spotify to start when it wasn't running
         const val CONFIRM_POLL_MS = 500L
         const val CONFIRM_WEB_MS = 3_000L
