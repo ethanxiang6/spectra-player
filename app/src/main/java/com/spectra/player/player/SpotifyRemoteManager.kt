@@ -381,6 +381,7 @@ class SpotifyRemoteManager(
         // loaded before must not replace the song that was just tapped.
         awaited = Awaited(uri, SystemClock.elapsedRealtime() + AWAIT_MAX_MS)
         playJob?.cancel()
+        warmUpJob?.cancel()
         playJob = scope.launch {
             try {
                 startRequestedSong(uri, hint, context)
@@ -394,13 +395,15 @@ class SpotifyRemoteManager(
     private suspend fun startRequestedSong(uri: String, hint: NowPlayingTrack?, context: PlayContext?) {
         // Spotify may not be running at all (Spectra opened first). Connecting App Remote
         // starts it; give that a moment so the phone is ready to take the play request.
-        if (liveRemote() == null && _connection.value != Connection.NeedsApproval) {
-            connect(force = true)
+        // Kick off App Remote if needed but don't wait for it: asking Spotify's servers whether the
+        // phone is ready (below) takes about as long and tells us more.
+        if (liveRemote() == null && _connection.value != Connection.NeedsApproval) connect(force = true)
+        val web = webPlayback
+        if (web == null && liveRemote() == null) {
             kotlinx.coroutines.withTimeoutOrNull(CONNECT_GRACE_MS) {
                 connection.first { it != Connection.Connecting && it != Connection.Disconnected }
             }
         }
-        val web = webPlayback
         // Spotify asleep: App Remote can't reach it and it isn't offered as a device. It only
         // wakes for a real "play" press, so send one, then wait until it can take requests.
         wokeByKey = false
@@ -431,6 +434,44 @@ class SpotifyRemoteManager(
     }
 
     private var playJob: kotlinx.coroutines.Job? = null
+
+    private var warmUpJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Gets a sleeping Spotify ready as soon as Spectra opens, so the first tap on a song doesn't
+     * have to wait for it: wakes it (muted), pauses the song it resumes, and gives the sound back.
+     * Does nothing when Spotify is already reachable, something is playing, or a song was tapped.
+     */
+    fun warmUp() {
+        val web = webPlayback ?: return
+        if (warmUpJob?.isActive == true || playJob?.isActive == true) return
+        warmUpJob = scope.launch {
+            try {
+                delay(WARM_UP_DELAY_MS)
+                if (liveRemote() != null || _playback.value.isPlaying) return@launch
+                val audio = context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
+                if (audio == null || audio.isMusicActive) return@launch
+                if (web.phoneListed()) return@launch
+                wokeByKey = false
+                wakeSpotify(web)
+                if (!wokeByKey) return@launch
+                // Spotify is now playing its last song with the sound off. Pause it and make sure
+                // it really stopped before the sound comes back.
+                for (attempt in 1..4) {
+                    val api = liveRemote()?.playerApi
+                    if (api != null) api.pause() else web.pause()
+                    delay(300)
+                    val stillPlaying = liveRemote()?.let { r ->
+                        kotlinx.coroutines.withTimeoutOrNull(1_500L) { appRemoteState(r) }?.isPaused == false
+                    } ?: (web.currentlyPlaying()?.isPlaying == true)
+                    if (!stillPlaying) break
+                }
+            } finally {
+                wokeByKey = false
+                unmuteAfterWake()
+            }
+        }
+    }
 
     /** The play key woke Spotify, so it is playing whatever it had loaded (silenced by [mutedForWake]). */
     private var wokeByKey = false
@@ -570,8 +611,11 @@ class SpotifyRemoteManager(
     private suspend fun confirmPlaying(uri: String, name: String?, timeoutMs: Long, anySong: Boolean = false): Boolean {
         val deadline = SystemClock.elapsedRealtime() + timeoutMs
         var corrected = false
+        var first = true
         while (SystemClock.elapsedRealtime() < deadline) {
-            delay(CONFIRM_POLL_MS)
+            // Look soon after the request, then at a steady pace.
+            delay(if (first) CONFIRM_FIRST_MS else CONFIRM_POLL_MS)
+            first = false
             val r = liveRemote()
             if (r != null) {
                 val state = kotlinx.coroutines.withTimeoutOrNull(1_500L) { appRemoteState(r) }
@@ -1003,8 +1047,10 @@ class SpotifyRemoteManager(
         const val CONNECT_GRACE_MS = 1_500L    // for App Remote to connect before trying anything else
         const val WAKE_WAIT_MS = 5_000L        // for Spotify to wake after the system play key
         const val WAKE_DIRECT_WAIT_MS = 2_500L // ... and after the key sent straight to Spotify
-        const val WAKE_POLL_MS = 400L
-        const val CONFIRM_POLL_MS = 500L
+        const val WAKE_POLL_MS = 150L
+        const val CONFIRM_FIRST_MS = 150L
+        const val CONFIRM_POLL_MS = 250L
+        const val WARM_UP_DELAY_MS = 1_200L    // let App Remote connect by itself first
         const val CONFIRM_WEB_MS = 3_000L
         const val CONFIRM_REMOTE_MS = 7_000L
         const val SEEK_GUARD_MS = 2_500L

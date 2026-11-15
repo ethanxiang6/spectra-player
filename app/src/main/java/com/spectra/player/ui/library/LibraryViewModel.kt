@@ -145,6 +145,9 @@ class LibraryViewModel(
         }
     }
 
+    /** The library came to the front (app opened or returned to): get Spotify ready to play. */
+    fun onForeground() = remote.warmUp()
+
     private var songsJob: kotlinx.coroutines.Job? = null
 
     fun setLiked(track: Track, liked: Boolean) {

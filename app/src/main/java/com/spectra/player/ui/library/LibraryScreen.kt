@@ -92,6 +92,10 @@ fun LibraryScreen(
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
     val context = LocalContext.current
+    androidx.lifecycle.compose.LifecycleStartEffect(Unit) {
+        viewModel.onForeground()
+        onStopOrDispose { }
+    }
 
     LibraryContent(
         songs = songs,
