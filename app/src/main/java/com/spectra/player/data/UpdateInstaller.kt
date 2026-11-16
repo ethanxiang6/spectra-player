@@ -24,7 +24,11 @@ import java.net.URL
  * may update itself without a confirmation prompt; on older versions (or the first time, when
  * "install unknown apps" has to be allowed for Spectra) Android shows its own prompt.
  */
-class UpdateInstaller(private val context: Context) {
+class UpdateInstaller(
+    private val context: Context,
+    /** The icon alias that matches the look the user chose (Monochrome when that is on). */
+    private val iconAlias: () -> String = { "Monochrome" },
+) {
 
     private val dir: File get() = File(context.filesDir, "updates").apply { mkdirs() }
 
@@ -113,12 +117,29 @@ class UpdateInstaller(private val context: Context) {
         }
     }
 
+    /** The chosen launcher icon as a picture, for the installer's screens. */
+    private fun installIcon(): android.graphics.Bitmap? = try {
+        val component = android.content.ComponentName(context, "com.spectra.player.icon.${iconAlias()}")
+        val drawable = context.packageManager.getActivityIcon(component)
+        val size = 192
+        val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        drawable.setBounds(0, 0, size, size)
+        drawable.draw(canvas)
+        bitmap
+    } catch (e: Exception) {
+        null
+    }
+
     /** Gives the APK to Android's installer. The outcome arrives on [results]. */
     suspend fun install(file: File): Boolean = withContext(Dispatchers.IO) {
         try {
             val installer = context.packageManager.packageInstaller
             val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
             params.setAppPackageName(context.packageName)
+            // Android's install screens show this picture and name instead of the icon packed in the APK.
+            params.setAppLabel(context.getString(com.spectra.player.R.string.app_name))
+            installIcon()?.let { params.setAppIcon(it) }
             if (Build.VERSION.SDK_INT >= 31) {
                 params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
             }

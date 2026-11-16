@@ -36,6 +36,11 @@ class MainActivity : ComponentActivity() {
                 com.spectra.player.ui.nowplaying.Dusk.appCustom =
                     !appSettings.monochrome && appSettings.theme == com.spectra.player.visualizer.Backdrop.CUSTOM
             }
+            // The launch screen (shown while Spectra opens, also right after an update) and the
+            // window behind the app follow the chosen look instead of the default icon's colours.
+            androidx.compose.runtime.LaunchedEffect(appSettings.monochrome, appSettings.icon) {
+                applyLaunchLook(appSettings.monochrome, appSettings.icon)
+            }
             // The home screen widget wears the same colours: redraw it when they change.
             androidx.compose.runtime.LaunchedEffect(
                 appSettings.monochrome, appSettings.theme, appSettings.custom, appSettings.widgetBackground,
@@ -53,6 +58,28 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         // Bring the home screen widget (if there is one) back to life.
         com.spectra.player.widget.WidgetService.startIfNeeded(this)
+    }
+
+    private fun applyLaunchLook(mono: Boolean, icon: String) {
+        val alias = if (mono) "Monochrome" else com.spectra.player.ui.theme.AppIcons.find(icon).alias
+        if (mono) window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.BLACK))
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            val style = when (alias) {
+                "Midnight" -> R.style.Theme_Spectra_Splash_Midnight
+                "Sunset" -> R.style.Theme_Spectra_Splash_Sunset
+                "Aurora" -> R.style.Theme_Spectra_Splash_Aurora
+                "Nebula" -> R.style.Theme_Spectra_Splash_Nebula
+                "Ocean" -> R.style.Theme_Spectra_Splash_Ocean
+                "Black" -> R.style.Theme_Spectra_Splash_Black
+                "Monochrome" -> R.style.Theme_Spectra_Splash_Monochrome
+                else -> R.style.Theme_Spectra_Splash_Evening
+            }
+            try {
+                splashScreen.setSplashScreenTheme(style)
+            } catch (e: Exception) {
+                // Some launchers' splash handling can refuse; the default stays.
+            }
+        }
     }
 
     // singleTask: the spectra://callback redirect from the Custom Tab arrives here.

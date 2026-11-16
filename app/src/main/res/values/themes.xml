@@ -7,4 +7,21 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
+
+    <!-- Launch screen in the colours of the "Evening" icon (filled in from Android 12 on, see values-v31). -->
+    <style name="Theme.Spectra.Splash.Evening" parent="Theme.Spectra" />
+    <!-- Launch screen in the colours of the "Midnight" icon (filled in from Android 12 on, see values-v31). -->
+    <style name="Theme.Spectra.Splash.Midnight" parent="Theme.Spectra" />
+    <!-- Launch screen in the colours of the "Sunset" icon (filled in from Android 12 on, see values-v31). -->
+    <style name="Theme.Spectra.Splash.Sunset" parent="Theme.Spectra" />
+    <!-- Launch screen in the colours of the "Aurora" icon (filled in from Android 12 on, see values-v31). -->
+    <style name="Theme.Spectra.Splash.Aurora" parent="Theme.Spectra" />
+    <!-- Launch screen in the colours of the "Nebula" icon (filled in from Android 12 on, see values-v31). -->
+    <style name="Theme.Spectra.Splash.Nebula" parent="Theme.Spectra" />
+    <!-- Launch screen in the colours of the "Ocean" icon (filled in from Android 12 on, see values-v31). -->
+    <style name="Theme.Spectra.Splash.Ocean" parent="Theme.Spectra" />
+    <!-- Launch screen in the colours of the "Black" icon (filled in from Android 12 on, see values-v31). -->
+    <style name="Theme.Spectra.Splash.Black" parent="Theme.Spectra" />
+    <!-- Launch screen in the colours of the "Monochrome" icon (filled in from Android 12 on, see values-v31). -->
+    <style name="Theme.Spectra.Splash.Monochrome" parent="Theme.Spectra" />
 </resources>

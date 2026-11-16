@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The launch screen Android shows while Spectra opens (also after an update), one per icon.
+         MainActivity picks the one that matches the chosen icon, or Monochrome. -->
+    <style name="Theme.Spectra.Splash.Evening" parent="Theme.Spectra">
+        <item name="android:windowSplashScreenBackground">#FF03051A</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_evening</item>
+    </style>
+    <style name="Theme.Spectra.Splash.Midnight" parent="Theme.Spectra">
+        <item name="android:windowSplashScreenBackground">#FF010208</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_midnight</item>
+    </style>
+    <style name="Theme.Spectra.Splash.Sunset" parent="Theme.Spectra">
+        <item name="android:windowSplashScreenBackground">#FF1A1440</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_sunset</item>
+    </style>
+    <style name="Theme.Spectra.Splash.Aurora" parent="Theme.Spectra">
+        <item name="android:windowSplashScreenBackground">#FF020812</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_aurora</item>
+    </style>
+    <style name="Theme.Spectra.Splash.Nebula" parent="Theme.Spectra">
+        <item name="android:windowSplashScreenBackground">#FF05030F</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_nebula</item>
+    </style>
+    <style name="Theme.Spectra.Splash.Ocean" parent="Theme.Spectra">
+        <item name="android:windowSplashScreenBackground">#FF010B18</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_ocean</item>
+    </style>
+    <style name="Theme.Spectra.Splash.Black" parent="Theme.Spectra">
+        <item name="android:windowSplashScreenBackground">#FF000000</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_black</item>
+    </style>
+    <style name="Theme.Spectra.Splash.Monochrome" parent="Theme.Spectra">
+        <item name="android:windowSplashScreenBackground">#FF000000</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_monochrome</item>
+    </style>
+</resources>

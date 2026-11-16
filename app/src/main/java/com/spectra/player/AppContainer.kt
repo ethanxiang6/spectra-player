@@ -88,5 +88,7 @@ class AppContainer(context: Context) {
     val visualizerPrefs = VisualizerPrefs(appContext)
     val appPrefs = com.spectra.player.ui.theme.AppPrefs(appContext)
     val updates = com.spectra.player.data.UpdateChecker(json)
-    val updateInstaller = com.spectra.player.data.UpdateInstaller(appContext)
+    val updateInstaller = com.spectra.player.data.UpdateInstaller(appContext) {
+        appPrefs.settings.value.let { if (it.monochrome) "Monochrome" else it.icon }
+    }
 }
