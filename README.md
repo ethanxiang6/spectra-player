@@ -4,10 +4,6 @@ A dark-themed Spotify companion for Android, built with Kotlin, Jetpack Compose 
 Browse your saved songs and playlists, control playback in the Spotify app, and watch a
 real-time **circular spectrum visualizer** around the album art.
 
-> **Status:** first working draft. It compiles, the unit tests pass, and GitHub Actions produces a
-> debug APK. It has **not been run on a device yet**, so expect runtime rough edges (especially the
-> Spotify connection and the live visualizer).
-
 ## Features
 
 | Area | What it does |
