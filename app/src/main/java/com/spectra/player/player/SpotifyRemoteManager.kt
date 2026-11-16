@@ -57,6 +57,9 @@ class SpotifyRemoteManager(
     private var remote: SpotifyAppRemote? = null
     private var playerSubscription: Subscription<PlayerState>? = null
     private var lastImageUri: String? = null
+
+    /** The cover the bitmap in [_artwork] was loaded from; a bitmap never outlives its cover. */
+    private var artworkFor: String? = null
     private var pendingPlay: PendingPlay? = null
 
     private data class PendingPlay(val uri: String, val context: PlayContext?)
@@ -163,6 +166,7 @@ class SpotifyRemoteManager(
         val previous = _playback.value
         if (previous.track?.uri != state.track?.uri) {
             _artwork.value = null
+            artworkFor = null
             lastImageUri = null
         }
         val guard = seekGuard
@@ -367,6 +371,7 @@ class SpotifyRemoteManager(
         connectAgainWithAuthView = null
         _playback.value = PlaybackState.Idle
         _artwork.value = null
+        artworkFor = null
         _canPlayOnDemand.value = null
         _connection.value = Connection.Disconnected
     }
@@ -784,6 +789,7 @@ class SpotifyRemoteManager(
         val previous = _playback.value
         if (previous.track?.uri != track.uri) {
             _artwork.value = null
+            artworkFor = null
             lastImageUri = null
         }
         _playback.value = PlaybackState(
@@ -951,6 +957,7 @@ class SpotifyRemoteManager(
             val arrived = t?.uri == waiting.uri && !state.isPaused
             if (arrived || SystemClock.elapsedRealtime() > waiting.untilMs) awaited = null else return
         }
+        val previousUri = _playback.value.track?.uri
         val knownUrl = _playback.value.track?.takeIf { it.uri == t?.uri }?.imageUrl
         val now = SystemClock.elapsedRealtime()
         val reported = state.playbackPosition
@@ -981,24 +988,58 @@ class SpotifyRemoteManager(
         )
 
         val raw = t?.imageUri?.raw
+        // The song moved on to another cover: drop the old picture at once, so the last song's
+        // cover is never shown with the new song (it used to stay when the new one failed to load).
+        if (artworkFor != raw) {
+            _artwork.value = null
+            artworkFor = null
+        }
         if (raw != lastImageUri) {
             lastImageUri = raw
-            if (t?.imageUri != null) loadArtwork(t.imageUri) else _artwork.value = null
+            if (t?.imageUri != null) loadArtwork(t.imageUri)
+        }
+        // App Remote doesn't give a web link for the cover; fetch one so there is something to
+        // show while (or if) Spotify's own picture doesn't arrive.
+        if (t != null && t.uri != previousUri && knownUrl == null) fillImageUrl(t.uri)
+    }
+
+    /** Looks up the cover's web link for [trackUri] and adds it to the song shown, if it's still that song. */
+    private fun fillImageUrl(trackUri: String) {
+        val web = webPlayback ?: return
+        scope.launch {
+            val url = web.currentlyPlaying()?.track?.takeIf { it.uri == trackUri }?.imageUrl ?: return@launch
+            val current = _playback.value
+            if (current.track?.uri == trackUri && current.track.imageUrl == null) {
+                _playback.value = current.copy(track = current.track.copy(imageUrl = url))
+            }
         }
     }
 
     private fun loadArtwork(uri: ImageUri) {
-        remote?.imagesApi?.getImage(uri, Image.Dimension.LARGE)
-            ?.setResultCallback { bitmap ->
+        val api = remote?.imagesApi
+        if (api == null) {
+            // Not connected: try again with the next player report.
+            lastImageUri = null
+            return
+        }
+        api.getImage(uri, Image.Dimension.LARGE)
+            .setResultCallback { bitmap ->
                 // Trim baked-in borders and centre-crop to a square, off the main thread.
                 scope.launch {
                     val art = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                         com.spectra.player.ui.image.ArtworkCrop.squareCrop(bitmap).asImageBitmap()
                     }
-                    if (lastImageUri == uri.raw) _artwork.value = art
+                    if (lastImageUri == uri.raw) {
+                        _artwork.value = art
+                        artworkFor = uri.raw
+                    }
                 }
             }
-            ?.setErrorCallback { Log.w(TAG, "Artwork load failed: ${it.javaClass.simpleName}") }
+            .setErrorCallback {
+                Log.w(TAG, "Artwork load failed: ${it.javaClass.simpleName}")
+                // Let the next player report (every few seconds) ask again.
+                mainHandler.post { if (lastImageUri == uri.raw) lastImageUri = null }
+            }
     }
 
     /** App Remote refused the play request: try Spotify Connect via the Web API, then explain. */
