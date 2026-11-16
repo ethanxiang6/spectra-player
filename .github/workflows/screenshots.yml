@@ -5,6 +5,13 @@ name: Screenshots
 # "ui-preview" pre-release (not an app release; it holds no APK).
 on:
   workflow_dispatch:
+    inputs:
+      tests:
+        description: Which screenshot tests to run
+        default: "*ChartScreensTest*"
+      asset:
+        description: Name of the zip on the ui-preview pre-release
+        default: screenshots.zip
 
 permissions:
   contents: write
@@ -27,7 +34,7 @@ jobs:
         run: |
           chmod +x ./gradlew
           set -o pipefail
-          ./gradlew -Pscreenshots :app:recordPaparazziDebug --tests '*ChartScreensTest*' --stacktrace --console=plain 2>&1 | tee shots.log
+          ./gradlew -Pscreenshots :app:recordPaparazziDebug --tests "${{ inputs.tests || '*ChartScreensTest*' }}" --stacktrace --console=plain 2>&1 | tee shots.log
 
       - name: Summarize errors
         if: failure()
@@ -49,10 +56,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag=ui-preview
-          (cd app/src/test/snapshots/images && zip -q "$GITHUB_WORKSPACE/screenshots.zip" *.png)
+          (cd app/src/test/snapshots/images && zip -q "$GITHUB_WORKSPACE/${{ inputs.asset || 'screenshots.zip' }}" *.png)
           if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
               --title "UI preview (screenshots, not an app release)" \
               --notes "Design screenshots made by the Screenshots workflow. There is no APK here."
           fi
-          gh release upload "$tag" screenshots.zip --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload "$tag" "${{ inputs.asset || 'screenshots.zip' }}" --clobber --repo "$GITHUB_REPOSITORY"

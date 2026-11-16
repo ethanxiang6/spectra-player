@@ -382,6 +382,84 @@ fun NowPlayingScreen(
     }
 }
 
+/**
+ * The visualizer page drawn from plain values, with no live audio or view model: used to render
+ * screenshots and promo frames. Mirrors the layout of [NowPlayingScreen].
+ */
+@Composable
+internal fun NowPlayingStill(
+    playback: PlaybackState,
+    artwork: ImageBitmap?,
+    spectrum: FloatArray,
+    settings: com.spectra.player.visualizer.VisualizerSettings,
+    seconds: Float,
+    artAngle: Float = 0f,
+    controlsVisible: Boolean = false,
+    liked: Boolean? = true,
+    /** Leaves the room the lyrics take, so the layout matches a song with lyrics. */
+    lyricsRoom: Boolean = false,
+) {
+    Box(Modifier.fillMaxSize().background(Dusk.SkyTop)) {
+        SkyBackdrop(
+            backdrop = if (Dusk.mono) Backdrop.BLACK else settings.backdrop,
+            showStars = settings.stars,
+            artwork = artwork,
+            imageUrl = null,
+            time = { seconds },
+            energy = { spectrum.bassLevel() },
+            modifier = Modifier.fillMaxSize(),
+        )
+        Column(
+            modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Spacer(Modifier.weight(0.8f))
+            RadialSpectrumVisualizer(
+                spectrum = { spectrum },
+                style = settings.style,
+                onStyleChange = {},
+                modifier = Modifier.fillMaxWidth(0.94f),
+                innerRadiusFraction = ART_FRACTION,
+                colors = (if (Dusk.mono) Backdrop.BLACK else settings.backdrop).look().ring,
+                interactive = false,
+                glow = true,
+                mirrored = true,
+            ) {
+                AlbumDisc(
+                    artwork = artwork,
+                    imageUrl = null,
+                    modifier = Modifier
+                        .fillMaxSize(ART_FRACTION)
+                        .graphicsLayer {
+                            rotationZ = artAngle
+                            val pulse = 1f + 0.05f * spectrum.bassLevel()
+                            scaleX = pulse
+                            scaleY = pulse
+                        },
+                )
+            }
+            Spacer(Modifier.height(40.dp))
+            FloatingTitle(
+                track = playback.track,
+                time = { seconds },
+                fontFamily = TitleFonts.byId(settings.fontId).family,
+            )
+            if (lyricsRoom) Spacer(Modifier.height(18.dp + 96.dp))
+            Spacer(Modifier.weight(1.2f))
+        }
+        if (controlsVisible) {
+            ControlsOverlay(
+                playback = playback,
+                style = settings.style,
+                mode = VisualizerMode.DEFAULT,
+                onClose = {}, onStyle = {}, onSettings = {}, onShuffle = {}, onPrevious = {},
+                onPlayPause = {}, onNext = {}, onRepeat = {}, onSeek = {}, onScrub = {},
+                liked = liked,
+            )
+        }
+    }
+}
+
 @Composable
 private fun AlbumDisc(artwork: ImageBitmap?, imageUrl: String?, modifier: Modifier = Modifier) {
     Box(
