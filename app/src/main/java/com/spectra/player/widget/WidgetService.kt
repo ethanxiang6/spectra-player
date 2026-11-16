@@ -109,9 +109,13 @@ class WidgetService : Service() {
 
     /** Redraws song, cover, buttons and colours whenever one of them changes. */
     private suspend fun followSong() {
-        data class Shown(val uri: String?, val title: String?, val artist: String?, val playing: Boolean)
+        // While paused the position only changes when someone moves it (a seek in the app), so it
+        // counts as a change too; while playing the progress loop moves the line.
+        data class Shown(val uri: String?, val title: String?, val artist: String?, val playing: Boolean, val pausedAt: Long)
         combine(
-            container.remote.playback.map { Shown(it.track?.uri, it.track?.name, it.track?.artist, it.isPlaying) }
+            container.remote.playback.map {
+                Shown(it.track?.uri, it.track?.name, it.track?.artist, it.isPlaying, if (it.isPlaying) -1L else it.positionMs)
+            }
                 .distinctUntilChanged(),
             container.appPrefs.settings,
             art,
@@ -159,7 +163,8 @@ class WidgetService : Service() {
             val playback = remote.playback.value
             val now = SystemClock.elapsedRealtime()
             val playing = playback.isPlaying && playback.track != null
-            if (playing) {
+            // Keep going while Spectra is open, so changes made in the app always reach the widget.
+            if (playing || remote.appVisible) {
                 idleSince = now
             } else if (now - idleSince > IDLE_STOP_MS) {
                 stopSelf()

@@ -89,6 +89,9 @@ class SpotifyRemoteManager(
     private var seekGuard: SeekGuard? = null
     private var startedActivities = 0
 
+    /** True while one of Spectra's screens is on show. */
+    val appVisible: Boolean get() = startedActivities > 0
+
     /** Set while the home screen widget is live: keep following Spotify with no screen open. */
     @Volatile
     var backgroundWatch = false
