@@ -21,7 +21,7 @@ class SpectraWidget : AppWidgetProvider() {
     }
 
     companion object {
-        /** Draws the widget from what the app knows right now, with the bars at rest. */
+        /** Draws the widget from what the app knows right now, as it stands. */
         fun drawStill(context: Context) {
             val container = (context.applicationContext as? SpectraApp)?.container ?: return
             val playback = container.remote.playback.value
@@ -37,7 +37,6 @@ class SpectraWidget : AppWidgetProvider() {
                     art = WidgetService.lastArt,
                     settings = container.appPrefs.settings.value,
                 ),
-                levels = FloatArray(WidgetRenderer.BAR_COUNT),
                 fraction = if (duration > 0) playback.currentPosition().toFloat() / duration else 0f,
             )
         }

@@ -36,6 +36,10 @@ class MainActivity : ComponentActivity() {
                 com.spectra.player.ui.nowplaying.Dusk.appCustom =
                     !appSettings.monochrome && appSettings.theme == com.spectra.player.visualizer.Backdrop.CUSTOM
             }
+            // The home screen widget wears the same colours: redraw it when they change.
+            androidx.compose.runtime.LaunchedEffect(
+                appSettings.monochrome, appSettings.theme, appSettings.custom, appSettings.widgetBackground,
+            ) { com.spectra.player.widget.SpectraWidget.drawStill(applicationContext) }
             SpectraTheme(theme = appSettings.theme, monochrome = appSettings.monochrome) {
                 SpectraRoot(
                     container = container,

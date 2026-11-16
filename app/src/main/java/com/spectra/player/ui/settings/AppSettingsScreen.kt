@@ -195,6 +195,14 @@ fun AppSettingsContent(
             }
             Caption("Your home screen can take a few seconds to show the new icon.")
 
+            Section("Home screen widget")
+            ChartSwitchRow(
+                "Background panel",
+                settings.widgetBackground,
+                onChange = { on -> onUpdate { it.copy(widgetBackground = on) } },
+            )
+            Caption("Off leaves only the song and buttons over your wallpaper.")
+
             Section("Account")
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),

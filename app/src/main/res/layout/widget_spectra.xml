@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Home screen widget, 4 wide and 1 tall: cover, song, visualizer bars (also the seek strip), controls. -->
+<!-- Home screen widget, 4 wide and 1 tall: cover, song, progress line (tap to seek), controls. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
@@ -123,6 +123,66 @@
                         android:contentDescription="@null" />
                     <ImageView
                         android:id="@+id/widget_seek_9"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_10"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_11"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_12"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_13"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_14"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_15"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_16"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_17"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_18"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:contentDescription="@null" />
+                    <ImageView
+                        android:id="@+id/widget_seek_19"
                         android:layout_width="0dp"
                         android:layout_height="match_parent"
                         android:layout_weight="1"

@@ -2,5 +2,5 @@
 <resources>
     <string name="app_name">Spectra</string>
     <string name="widget_name">Spectra player</string>
-    <string name="widget_description">Song, visualizer and controls. Tap the bars to jump to that part of the song.</string>
+    <string name="widget_description">Song, progress and controls. Tap the line to jump to that part of the song.</string>
 </resources>

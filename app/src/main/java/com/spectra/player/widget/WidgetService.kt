@@ -1,6 +1,5 @@
 package com.spectra.player.widget
 
-import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,7 +7,6 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.os.Build
@@ -17,7 +15,6 @@ import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import coil.imageLoader
 import coil.request.ImageRequest
@@ -44,15 +41,14 @@ import kotlinx.coroutines.withContext
 /**
  * Keeps the home screen widget live. Android only lets an app keep working with no screen open
  * from a foreground service, so this runs while music plays (and for a few minutes after it
- * stops), follows Spotify, and redraws the widget's bars several times a second while the phone's
+ * stops), follows Spotify, and moves the widget's progress line once a second while the phone's
  * screen is on. The widget's buttons arrive here as commands.
  */
 class WidgetService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val container: AppContainer get() = (application as SpectraApp).container
-    private val liveAllowed = MutableStateFlow(false)
     private val art = MutableStateFlow<Bitmap?>(lastArt)
-    private val levels = FloatArray(WidgetRenderer.BAR_COUNT)
+    private var line: Bitmap? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -63,7 +59,7 @@ class WidgetService : Service() {
         ensureConnected()
         scope.launch { followArtwork() }
         scope.launch { followSong() }
-        scope.launch { drawFrames() }
+        scope.launch { drawProgress() }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -85,7 +81,10 @@ class WidgetService : Service() {
             ACTION_SEEK -> {
                 val duration = remote.playback.value.track?.durationMs ?: 0L
                 val step = intent.getIntExtra(EXTRA_STEP, -1)
-                if (duration > 0 && step >= 0) remote.seekTo((WidgetMath.seekFraction(step) * duration).toLong())
+                if (duration > 0 && step >= 0) {
+                    remote.seekTo((WidgetMath.seekFraction(step) * duration).toLong())
+                    showProgress()
+                }
             }
         }
         return START_NOT_STICKY
@@ -93,7 +92,6 @@ class WidgetService : Service() {
 
     override fun onDestroy() {
         container.remote.backgroundWatch = false
-        container.visualizer.stopIfOwnedBy(this)
         scope.cancel()
         SpectraWidget.drawStill(this)
         super.onDestroy()
@@ -148,14 +146,11 @@ class WidgetService : Service() {
         }
     }
 
-    /** The moving bars, plus the checks for when this service should stop. */
-    private suspend fun drawFrames() {
+    /** Moves the progress line once a second, and decides when this service should stop. */
+    private suspend fun drawProgress() {
         val remote = container.remote
-        val visualizer = container.visualizer
         val power = getSystemService(Context.POWER_SERVICE) as PowerManager
-        var bitmap: Bitmap? = null
         var idleSince = SystemClock.elapsedRealtime()
-        var moving = false
         while (scope.isActive) {
             if (WidgetRenderer.widgetIds(this).isEmpty()) {
                 stopSelf()
@@ -170,29 +165,16 @@ class WidgetService : Service() {
                 stopSelf()
                 return
             }
-            val duration = playback.track?.durationMs ?: 0L
-            val fraction = if (duration > 0) playback.currentPosition(now).toFloat() / duration else 0f
-            val settings = container.appPrefs.settings.value
-            if (playing && power.isInteractive) {
-                liveAllowed.value = container.visualizerPrefs.settings.value.liveAudio &&
-                    ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-                if (!visualizer.running) {
-                    visualizer.start(scope, remote.playback, liveAllowed, owner = this, frameMs = VISUALIZER_FRAME_MS)
-                }
-                WidgetMath.bars(visualizer.spectrum.value, levels.size, levels)
-                bitmap = WidgetRenderer.renderBars(this, settings, levels, fraction, bitmap)
-                moving = true
-                delay(FRAME_MS)
-            } else {
-                visualizer.stopIfOwnedBy(this)
-                if (moving) {
-                    moving = false
-                    levels.fill(0f)
-                    bitmap = WidgetRenderer.renderBars(this, settings, levels, fraction, bitmap)
-                }
-                delay(RESTING_TICK_MS)
-            }
+            if (playing && power.isInteractive) showProgress()
+            delay(TICK_MS)
         }
+    }
+
+    private fun showProgress() {
+        val playback = container.remote.playback.value
+        val duration = playback.track?.durationMs ?: 0L
+        val fraction = if (duration > 0) playback.currentPosition().toFloat() / duration else 0f
+        line = WidgetRenderer.renderProgress(this, container.appPrefs.settings.value, fraction, line)
     }
 
     private fun goForeground() {
@@ -235,9 +217,7 @@ class WidgetService : Service() {
         private const val TAG = "SpectraWidget"
         private const val CHANNEL = "widget"
         private const val NOTIFICATION_ID = 41
-        private const val FRAME_MS = 100L
-        private const val VISUALIZER_FRAME_MS = 33L
-        private const val RESTING_TICK_MS = 1_000L
+        private const val TICK_MS = 1_000L
         private const val IDLE_STOP_MS = 3 * 60_000L
 
         /** The last cover drawn, kept so a still redraw (resize, service stop) doesn't lose it. */

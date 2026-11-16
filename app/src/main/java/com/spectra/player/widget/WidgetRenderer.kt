@@ -54,7 +54,7 @@ class WidgetColors(val bg: Int, val ink: Int, val dim: Int, val accent: Int, val
     }
 }
 
-/** Everything the widget shows apart from the moving bars. */
+/** Everything the widget shows apart from the progress line. */
 class WidgetContent(
     val title: String,
     val artist: String,
@@ -64,27 +64,28 @@ class WidgetContent(
 )
 
 object WidgetRenderer {
-    const val BAR_COUNT = 24
-
     fun widgetIds(context: Context): IntArray = try {
         AppWidgetManager.getInstance(context).getAppWidgetIds(ComponentName(context, SpectraWidget::class.java))
     } catch (e: Exception) {
         IntArray(0)
     }
 
-    /** Draws the whole widget: song, cover, buttons and one frame of bars. */
-    fun renderAll(context: Context, content: WidgetContent, levels: FloatArray, fraction: Float) {
+    /** Draws the whole widget: song, cover, buttons and the progress line. */
+    fun renderAll(context: Context, content: WidgetContent, fraction: Float) {
         val manager = AppWidgetManager.getInstance(context)
         val colors = WidgetColors.of(content.settings)
         for (id in widgetIds(context)) {
             try {
                 val widthDp = contentWidthDp(manager, id)
                 val views = RemoteViews(context.packageName, R.layout.widget_spectra)
+                val panel = if (content.settings.widgetBackground) android.view.View.VISIBLE else android.view.View.GONE
+                views.setViewVisibility(R.id.widget_bg, panel)
+                views.setViewVisibility(R.id.widget_outline, panel)
                 views.setInt(R.id.widget_bg, "setColorFilter", colors.bg)
                 views.setInt(R.id.widget_outline, "setColorFilter", colors.outline)
                 views.setImageViewBitmap(R.id.widget_art, artBitmap(context, content.art, colors, content.settings.monochrome))
                 views.setImageViewBitmap(R.id.widget_title, titleBitmap(context, content.title, content.artist, colors, widthDp))
-                views.setImageViewBitmap(R.id.widget_bars, barsBitmap(context, levels, fraction, colors, widthDp, null))
+                views.setImageViewBitmap(R.id.widget_bars, progressBitmap(context, fraction, colors, widthDp, null))
                 views.setImageViewResource(
                     R.id.widget_play,
                     if (content.playing) R.drawable.ic_widget_pause else R.drawable.ic_widget_play,
@@ -112,13 +113,13 @@ object WidgetRenderer {
         }
     }
 
-    /** Redraws only the bars: this is what runs several times a second while music plays. */
-    fun renderBars(context: Context, settings: AppSettings, levels: FloatArray, fraction: Float, reuse: Bitmap?): Bitmap? {
+    /** Redraws only the progress line: this runs once a second while music plays. */
+    fun renderProgress(context: Context, settings: AppSettings, fraction: Float, reuse: Bitmap?): Bitmap? {
         val manager = AppWidgetManager.getInstance(context)
         val ids = widgetIds(context)
         if (ids.isEmpty()) return reuse
         return try {
-            val bitmap = barsBitmap(context, levels, fraction, WidgetColors.of(settings), contentWidthDp(manager, ids[0]), reuse)
+            val bitmap = progressBitmap(context, fraction, WidgetColors.of(settings), contentWidthDp(manager, ids[0]), reuse)
             val views = RemoteViews(context.packageName, R.layout.widget_spectra)
             views.setImageViewBitmap(R.id.widget_bars, bitmap)
             manager.partiallyUpdateAppWidget(ids, views)
@@ -184,18 +185,8 @@ object WidgetRenderer {
         null
     }
 
-    /**
-     * The visualizer as a row of bars around a centre line. Bars up to the playhead are drawn in
-     * the accent colour, the rest dimmed, so the row also shows how far the song has got.
-     */
-    private fun barsBitmap(
-        context: Context,
-        levels: FloatArray,
-        fraction: Float,
-        colors: WidgetColors,
-        widthDp: Int,
-        reuse: Bitmap?,
-    ): Bitmap {
+    /** A thin line with a knob at the playhead: how far the song has got, and where to tap to jump. */
+    private fun progressBitmap(context: Context, fraction: Float, colors: WidgetColors, widthDp: Int, reuse: Bitmap?): Bitmap {
         val w = context.px(widthDp.toFloat()).toInt().coerceAtLeast(8)
         val h = context.px(26f).toInt().coerceAtLeast(8)
         val bitmap = if (reuse != null && !reuse.isRecycled && reuse.width == w && reuse.height == h) {
@@ -205,20 +196,19 @@ object WidgetRenderer {
         }
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        val count = levels.size.coerceAtLeast(1)
-        val slot = w.toFloat() / count
-        val barWidth = (slot * 0.56f).coerceAtLeast(1f)
-        val least = context.px(2f)
-        val rest = ColorUtils.setAlphaComponent(colors.dim, 120)
-        val rect = RectF()
-        for (i in 0 until count) {
-            val level = levels.getOrElse(i) { 0f }.coerceIn(0f, 1f)
-            val barHeight = (least + (h - least) * level).coerceAtMost(h.toFloat())
-            val centre = slot * (i + 0.5f)
-            paint.color = if ((i + 0.5f) / count <= fraction) colors.accent else rest
-            rect.set(centre - barWidth / 2f, (h - barHeight) / 2f, centre + barWidth / 2f, (h + barHeight) / 2f)
-            canvas.drawRoundRect(rect, barWidth / 2f, barWidth / 2f, paint)
-        }
+        val knob = context.px(5f)
+        val thick = context.px(3f)
+        val y = h / 2f
+        val left = knob
+        val right = w - knob
+        val at = left + (right - left) * fraction.coerceIn(0f, 1f)
+        val rect = RectF(left, y - thick / 2f, right, y + thick / 2f)
+        paint.color = ColorUtils.setAlphaComponent(colors.dim, 120)
+        canvas.drawRoundRect(rect, thick / 2f, thick / 2f, paint)
+        paint.color = colors.accent
+        rect.right = at
+        canvas.drawRoundRect(rect, thick / 2f, thick / 2f, paint)
+        canvas.drawCircle(at, y, knob, paint)
         return bitmap
     }
 
@@ -255,7 +245,25 @@ object WidgetRenderer {
     }
 
     private val SEEK_IDS = intArrayOf(
-        R.id.widget_seek_0, R.id.widget_seek_1, R.id.widget_seek_2, R.id.widget_seek_3, R.id.widget_seek_4,
-        R.id.widget_seek_5, R.id.widget_seek_6, R.id.widget_seek_7, R.id.widget_seek_8, R.id.widget_seek_9,
+        R.id.widget_seek_0,
+        R.id.widget_seek_1,
+        R.id.widget_seek_2,
+        R.id.widget_seek_3,
+        R.id.widget_seek_4,
+        R.id.widget_seek_5,
+        R.id.widget_seek_6,
+        R.id.widget_seek_7,
+        R.id.widget_seek_8,
+        R.id.widget_seek_9,
+        R.id.widget_seek_10,
+        R.id.widget_seek_11,
+        R.id.widget_seek_12,
+        R.id.widget_seek_13,
+        R.id.widget_seek_14,
+        R.id.widget_seek_15,
+        R.id.widget_seek_16,
+        R.id.widget_seek_17,
+        R.id.widget_seek_18,
+        R.id.widget_seek_19,
     )
 }

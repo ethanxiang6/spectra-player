@@ -21,6 +21,8 @@ data class AppSettings(
     val autoVisualizerSec: Int = 0,
     /** Release tag the user chose to skip in the update prompt. */
     val skippedUpdate: String = "",
+    /** Home screen widget: draw its panel, or leave only the song and buttons over the wallpaper. */
+    val widgetBackground: Boolean = true,
 ) {
     companion object {
         /** Album art only makes sense on the visualizer. */
@@ -45,6 +47,7 @@ class AppPrefs(context: Context) {
             .putString(KEY_PRESETS, PalettePreset.encodeAll(next.presets))
             .putInt(KEY_AUTO_VIS, next.autoVisualizerSec)
             .putString(KEY_SKIPPED, next.skippedUpdate)
+            .putBoolean(KEY_WIDGET_BG, next.widgetBackground)
             .apply()
     }
 
@@ -62,6 +65,7 @@ class AppPrefs(context: Context) {
             presets = PalettePreset.decodeAll(prefs.getString(KEY_PRESETS, null)),
             autoVisualizerSec = prefs.getInt(KEY_AUTO_VIS, d.autoVisualizerSec),
             skippedUpdate = prefs.getString(KEY_SKIPPED, null) ?: d.skippedUpdate,
+            widgetBackground = prefs.getBoolean(KEY_WIDGET_BG, d.widgetBackground),
         )
     }
 
@@ -74,5 +78,6 @@ class AppPrefs(context: Context) {
         const val KEY_PRESETS = "palette_presets"
         const val KEY_AUTO_VIS = "auto_visualizer_sec"
         const val KEY_SKIPPED = "skipped_update"
+        const val KEY_WIDGET_BG = "widget_background"
     }
 }
