@@ -51,8 +51,8 @@ class PromoScreensTest {
         screenHeight = 1600,
         xdpi = 280,
         ydpi = 280,
-        // The density nearest 280 dpi, so the 720 px page is about as many dp wide as a phone.
-        density = Density.entries.minByOrNull { kotlin.math.abs(it.dpiValue - 280) } ?: Density.XHIGH,
+        // 280 dpi, so the 720 px page is about as many dp wide as a phone.
+        density = Density.create(280),
     )
 
     @get:Rule
