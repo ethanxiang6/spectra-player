@@ -451,7 +451,7 @@ internal fun NowPlayingStill(
             ControlsOverlay(
                 playback = playback,
                 style = settings.style,
-                mode = VisualizerMode.DEFAULT,
+                mode = VisualizerMode.LIVE,
                 onClose = {}, onStyle = {}, onSettings = {}, onShuffle = {}, onPrevious = {},
                 onPlayPause = {}, onNext = {}, onRepeat = {}, onSeek = {}, onScrub = {},
                 liked = liked,

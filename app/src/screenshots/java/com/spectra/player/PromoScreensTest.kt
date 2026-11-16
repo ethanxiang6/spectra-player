@@ -60,6 +60,8 @@ class PromoScreensTest {
         deviceConfig = promo,
         theme = "android:Theme.Material.NoActionBar",
         maxPercentDifference = 100.0,
+        // Full 720 px frames (Paparazzi otherwise shrinks snapshots to 1000 px tall).
+        useDeviceResolution = true,
     )
 
     private val liked = listOf(
@@ -223,7 +225,7 @@ class PromoScreensTest {
             val lyrics = p[4] == "1"
             val seconds = p[5].toFloat()
             val position = p[6].toLong()
-            val spectrum = p[7].split(",").map { it.toFloat() }.toFloatArray()
+            val spectrum = p[7].split(",").map { it.toFloat() * 0.82f }.toFloatArray()
             paparazzi.snapshot("v_${p[0]}") {
                 SpectraTheme(theme = Backdrop.BLACK, monochrome = true) {
                     NowPlayingStill(
